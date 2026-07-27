@@ -17,11 +17,12 @@ jobs:
           - windows-latest
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
+          cache-dependency-path: go.sum
       - run: go test ./...
       - run: go vet ./...
       - run: go build ./cmd/p2p-nc

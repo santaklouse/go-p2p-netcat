@@ -35,7 +35,163 @@ JavaScript CLI. PTY работает на macOS и Linux; Windows-сборка �
 `-i` явную ошибку, остальные режимы доступны. Статический браузерный PWA
 остаётся в исходном репозитории.
 
-## Требования и сборка
+## Установка
+
+Текущая стабильная версия — `v0.1.0`. Архив релиза содержит исполняемый файл
+`p2p-nc`, лицензию MIT и обе версии README. Перед установкой следует проверить
+архив по файлу `SHA256SUMS`.
+
+### Linux
+
+Следующая команда автоматически выбирает `amd64` или `arm64`, проверяет архив
+и устанавливает программу в `/usr/local/bin`:
+
+```bash
+set -euo pipefail
+
+P2PNC_VERSION="v0.1.0"
+case "$(uname -m)" in
+  x86_64|amd64) P2PNC_ARCH="amd64" ;;
+  aarch64|arm64) P2PNC_ARCH="arm64" ;;
+  *) echo "Неподдерживаемая архитектура Linux: $(uname -m)" >&2; exit 1 ;;
+esac
+
+P2PNC_ARCHIVE="p2p-nc-linux-${P2PNC_ARCH}.tar.gz"
+P2PNC_RELEASE_URL="https://github.com/santaklouse/go-p2p-netcat/releases/download/${P2PNC_VERSION}"
+
+curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/${P2PNC_ARCHIVE}"
+curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/SHA256SUMS"
+grep "  ${P2PNC_ARCHIVE}$" SHA256SUMS | sha256sum --check -
+tar -xzf "$P2PNC_ARCHIVE"
+sudo install -m 0755 "p2p-nc-linux-${P2PNC_ARCH}/p2p-nc" /usr/local/bin/p2p-nc
+p2p-nc --version
+```
+
+### macOS
+
+Поддерживаются процессоры Intel и Apple Silicon. Команда автоматически
+определяет архитектуру:
+
+```bash
+set -euo pipefail
+
+P2PNC_VERSION="v0.1.0"
+case "$(uname -m)" in
+  x86_64|amd64) P2PNC_ARCH="amd64" ;;
+  arm64|aarch64) P2PNC_ARCH="arm64" ;;
+  *) echo "Неподдерживаемая архитектура macOS: $(uname -m)" >&2; exit 1 ;;
+esac
+
+P2PNC_ARCHIVE="p2p-nc-darwin-${P2PNC_ARCH}.tar.gz"
+P2PNC_RELEASE_URL="https://github.com/santaklouse/go-p2p-netcat/releases/download/${P2PNC_VERSION}"
+
+curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/${P2PNC_ARCHIVE}"
+curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/SHA256SUMS"
+grep "  ${P2PNC_ARCHIVE}$" SHA256SUMS | shasum -a 256 --check
+tar -xzf "$P2PNC_ARCHIVE"
+sudo mkdir -p /usr/local/bin
+sudo install -m 0755 "p2p-nc-darwin-${P2PNC_ARCH}/p2p-nc" /usr/local/bin/p2p-nc
+p2p-nc --version
+```
+
+Бинарный файл релиза не нотарифицирован Apple. Если после скачивания через
+браузер Gatekeeper поместил его в карантин, сначала проверьте файл, затем
+удалите только атрибут карантина:
+
+```bash
+sudo xattr -d com.apple.quarantine /usr/local/bin/p2p-nc
+```
+
+### Windows
+
+Откройте PowerShell и выполните:
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$Version = 'v0.1.0'
+$Architecture = switch ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()) {
+    'X64' { 'amd64' }
+    'Arm64' { 'arm64' }
+    default { throw "Неподдерживаемая архитектура Windows: $([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)" }
+}
+$Archive = "p2p-nc-windows-$Architecture.zip"
+$ReleaseUrl = "https://github.com/santaklouse/go-p2p-netcat/releases/download/$Version"
+
+Invoke-WebRequest "$ReleaseUrl/$Archive" -OutFile $Archive
+Invoke-WebRequest "$ReleaseUrl/SHA256SUMS" -OutFile 'SHA256SUMS'
+$ChecksumLine = Get-Content 'SHA256SUMS' | Where-Object { $_ -match ([regex]::Escape($Archive) + '$') }
+if (-not $ChecksumLine) { throw "Не найдена контрольная сумма для $Archive" }
+$ExpectedHash = ($ChecksumLine -split '\s+')[0].ToLowerInvariant()
+$ActualHash = (Get-FileHash $Archive -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($ActualHash -ne $ExpectedHash) { throw "Проверка SHA-256 не пройдена для $Archive" }
+
+Expand-Archive $Archive -DestinationPath . -Force
+$InstallDir = Join-Path $env:LOCALAPPDATA 'Programs\p2p-netcat'
+New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+Copy-Item "p2p-nc-windows-$Architecture\p2p-nc.exe" "$InstallDir\p2p-nc.exe" -Force
+
+$CurrentPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+if (($CurrentPath -split ';') -notcontains $InstallDir) {
+    $NewPath = if ([string]::IsNullOrWhiteSpace($CurrentPath)) { $InstallDir } else { "$CurrentPath;$InstallDir" }
+    [Environment]::SetEnvironmentVariable('Path', $NewPath, 'User')
+}
+& "$InstallDir\p2p-nc.exe" --version
+```
+
+Обновлённый пользовательский `PATH` будет доступен в новых окнах терминала.
+Windows SmartScreen может показать предупреждение, поскольку исполняемый файл
+релиза не подписан сертификатом.
+
+### Телефоны Android
+
+Android-сборки — самостоятельные CLI-файлы, а не APK. Они требуют Android 7.0
+или новее и не требуют root при запуске через `adb shell`. Включите USB
+debugging, подключите телефон, установите Android Platform Tools и выполните:
+
+```bash
+set -euo pipefail
+
+P2PNC_VERSION="v0.1.0"
+P2PNC_ANDROID_ABI="$(adb shell getprop ro.product.cpu.abi | tr -d '\r')"
+case "$P2PNC_ANDROID_ABI" in
+  arm64-v8a) P2PNC_ANDROID_ARCH="arm64" ;;
+  armeabi-v7a|armeabi) P2PNC_ANDROID_ARCH="armv7" ;;
+  *) echo "Неподдерживаемый Android ABI: $P2PNC_ANDROID_ABI" >&2; exit 1 ;;
+esac
+
+P2PNC_ARCHIVE="p2p-nc-android-${P2PNC_ANDROID_ARCH}.tar.gz"
+P2PNC_RELEASE_URL="https://github.com/santaklouse/go-p2p-netcat/releases/download/${P2PNC_VERSION}"
+
+curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/${P2PNC_ARCHIVE}"
+curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/SHA256SUMS"
+if command -v sha256sum >/dev/null 2>&1; then
+  grep "  ${P2PNC_ARCHIVE}$" SHA256SUMS | sha256sum --check -
+else
+  grep "  ${P2PNC_ARCHIVE}$" SHA256SUMS | shasum -a 256 --check
+fi
+tar -xzf "$P2PNC_ARCHIVE"
+adb push "p2p-nc-android-${P2PNC_ANDROID_ARCH}/p2p-nc" /data/local/tmp/p2p-nc
+adb shell chmod 755 /data/local/tmp/p2p-nc
+adb shell /data/local/tmp/p2p-nc --version
+```
+
+Для постоянной identity укажите доступный для записи путь явно:
+
+```bash
+adb shell /data/local/tmp/p2p-nc id --identity /data/local/tmp/p2p-nc-identity.key
+```
+
+### Установка через Go
+
+При наличии современной версии Go и разрешённой автоматической загрузке
+toolchain:
+
+```bash
+GOTOOLCHAIN=auto go install github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@v0.1.0
+"$(go env GOPATH)/bin/p2p-nc" --version
+```
+
+## Сборка из исходного кода
 
 В `go.mod` закреплён Go 1.25.7. Современный Go с включённым
 `GOTOOLCHAIN=auto` скачает нужный toolchain автоматически.
@@ -179,6 +335,37 @@ GOTOOLCHAIN=auto /opt/homebrew/bin/go test ./...
 Тесты включают опубликованные JavaScript test vectors для token, четырёх
 HKDF-ключей, rendezvous ID, provider CID, AES-GCM envelope и обоих admission
 frames.
+
+## Автоматические релизы
+
+Каждый push в `main`, включая merge pull request, и каждый семантический тег
+`v*.*.*` запускает `.github/workflows/release-main.yml`. После успешных тестов
+и статического анализа workflow публикует GitHub Release со следующими
+сборками:
+
+- Linux: `amd64`, `arm64`;
+- macOS: `amd64`, `arm64`;
+- Windows: `amd64`, `arm64`;
+- Android 7.0 (API 24) и новее: `arm64`, `armv7`.
+
+Сборки Linux и macOS публикуются как `.tar.gz`, сборки Windows — как `.zip`.
+Сборки Android также публикуются как `.tar.gz`. Каждый релиз содержит файл
+`SHA256SUMS`. Семантические теги, например `v0.1.0`, создают стабильные релизы.
+Сборки из `main` помечаются как prerelease и получают детерминированный тег,
+который начинается с `main-` и заканчивается первыми 12 символами SHA коммита.
+Повторный запуск workflow обновляет тот же релиз, а не создаёт дубликат.
+
+Android-артефакты — это CLI-файлы для Android shell, а не APK. Вариант
+`android-arm64` подходит почти для всех современных физических телефонов и
+планшетов. `android-armv7` предназначен для старых 32-битных ARM-устройств.
+Пример установки и запуска:
+
+```bash
+tar -xzf p2p-nc-android-arm64.tar.gz
+adb push p2p-nc-android-arm64/p2p-nc /data/local/tmp/p2p-nc
+adb shell chmod 755 /data/local/tmp/p2p-nc
+adb shell /data/local/tmp/p2p-nc --version
+```
 
 ## Структура
 

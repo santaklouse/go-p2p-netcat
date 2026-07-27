@@ -1,0 +1,199 @@
+name: Release main
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*.*.*"
+
+concurrency:
+  group: release-main-${{ github.sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - run: go test ./...
+      - run: go vet ./...
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: verify
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-amd64
+            goos: linux
+            goarch: amd64
+            archive: tar.gz
+            cgo: "0"
+          - target: linux-arm64
+            goos: linux
+            goarch: arm64
+            archive: tar.gz
+            cgo: "0"
+          - target: darwin-amd64
+            goos: darwin
+            goarch: amd64
+            archive: tar.gz
+            cgo: "0"
+          - target: darwin-arm64
+            goos: darwin
+            goarch: arm64
+            archive: tar.gz
+            cgo: "0"
+          - target: windows-amd64
+            goos: windows
+            goarch: amd64
+            archive: zip
+            cgo: "0"
+          - target: windows-arm64
+            goos: windows
+            goarch: arm64
+            archive: zip
+            cgo: "0"
+          - target: android-arm64
+            goos: android
+            goarch: arm64
+            archive: tar.gz
+            cgo: "1"
+            cc: aarch64-linux-android24-clang
+          - target: android-armv7
+            goos: android
+            goarch: arm
+            goarm: "7"
+            archive: tar.gz
+            cgo: "1"
+            cc: armv7a-linux-androideabi24-clang
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Build and package
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOARM_VALUE: ${{ matrix.goarm }}
+          ARCHIVE: ${{ matrix.archive }}
+          CGO_ENABLED: ${{ matrix.cgo }}
+          CC_NAME: ${{ matrix.cc }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="main-${GITHUB_SHA::12}"
+          fi
+          package="p2p-nc-${TARGET}"
+          binary="p2p-nc"
+          build_mode=()
+          linker_flags="-s -w -X github.com/santaklouse/go-p2p-netcat/internal/cli.Version=$version"
+
+          if [[ "$GOOS" == "windows" ]]; then
+            binary="p2p-nc.exe"
+          fi
+
+          if [[ "$GOOS" == "android" ]]; then
+            export CC="${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/${CC_NAME}"
+            if [[ -n "$GOARM_VALUE" ]]; then
+              export GOARM="$GOARM_VALUE"
+            fi
+            build_mode=(-buildmode=pie)
+            linker_flags="${linker_flags} -checklinkname=0"
+          fi
+
+          mkdir -p "dist/$package"
+          go build \
+            -trimpath \
+            "${build_mode[@]}" \
+            -ldflags="$linker_flags" \
+            -o "dist/$package/$binary" \
+            ./cmd/p2p-nc
+          cp LICENSE README.md README.RU.md "dist/$package/"
+
+          if [[ "$ARCHIVE" == "zip" ]]; then
+            (
+              cd dist
+              zip -9 -r "$package.zip" "$package"
+            )
+          else
+            tar -C dist -czf "dist/$package.tar.gz" "$package"
+          fi
+
+          rm -rf "dist/$package"
+      - name: Upload build
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - name: Create checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum p2p-nc-* > SHA256SUMS
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          release_flags=()
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            tag="$GITHUB_REF_NAME"
+            title="p2p-netcat $tag"
+            release_flags=(--latest)
+          else
+            tag="main-${GITHUB_SHA::12}"
+            title="p2p-netcat main build ${GITHUB_SHA::7}"
+            release_flags=(--prerelease --latest=false)
+          fi
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/* --clobber
+            gh release edit "$tag" --title "$title" "${release_flags[@]}"
+          else
+            gh release create "$tag" dist/* \
+              --target "$GITHUB_SHA" \
+              --title "$title" \
+              --generate-notes \
+              "${release_flags[@]}"
+          fi
