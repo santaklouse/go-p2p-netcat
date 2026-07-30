@@ -28,7 +28,7 @@ Pin a version:
 ```bash
 curl -fsSL \
   https://raw.githubusercontent.com/santaklouse/go-p2p-netcat/main/deploy/deploy.sh |
-  P2PNC_VERSION=v0.2.0 bash
+  P2PNC_VERSION=v0.3.0 bash
 ```
 
 Install without elevated privileges:
@@ -60,6 +60,107 @@ bash /tmp/p2p-nc-deploy.sh
 
 The complete variable reference is at the top of
 [`deploy/deploy.sh`](../deploy/deploy.sh).
+
+## Docker and GitHub Packages
+
+Release images are published to GitHub Container Registry as
+`ghcr.io/santaklouse/go-p2p-netcat` for Linux `amd64` and `arm64`.
+
+Pull and verify the latest stable image:
+
+```bash
+docker pull ghcr.io/santaklouse/go-p2p-netcat:latest
+docker run --rm ghcr.io/santaklouse/go-p2p-netcat:latest --version
+```
+
+The image uses these tags:
+
+| Git ref | Container tags |
+|---|---|
+| `main` | `main`, for example `sha-0123456789ab` |
+| `v1.2.3` | `1.2.3`, `1.2`, `1`, `latest`, for example `sha-0123456789ab` |
+
+Use a version tag or digest instead of `latest` for reproducible deployments:
+
+```bash
+docker pull ghcr.io/santaklouse/go-p2p-netcat:latest
+docker inspect \
+  --format='{{index .RepoDigests 0}}' \
+  ghcr.io/santaklouse/go-p2p-netcat:latest
+```
+
+The process runs as UID/GID `65532`, includes CA certificates and `/bin/sh`,
+and uses `/config/p2p-netcat/identity.key` as its default persistent identity.
+Keep `/config` in a named volume:
+
+```bash
+docker volume create p2p-netcat-config
+docker run --rm \
+  --volume p2p-netcat-config:/config \
+  ghcr.io/santaklouse/go-p2p-netcat:latest \
+  id
+```
+
+On Linux, host networking gives libp2p and forwarded services the same network
+namespace as the host. This is the most direct configuration for a listener:
+
+```bash
+docker run --rm --init \
+  --name p2p-netcat \
+  --network host \
+  --volume p2p-netcat-config:/config \
+  ghcr.io/santaklouse/go-p2p-netcat:latest \
+  -l -k --transport-port 4001 31337
+```
+
+It also lets a UDP listener reach a WireGuard endpoint bound to host loopback:
+
+```bash
+docker run --rm --init \
+  --name p2p-netcat-wireguard \
+  --network host \
+  --volume p2p-netcat-config:/config \
+  ghcr.io/santaklouse/go-p2p-netcat:latest \
+  -u -l -k --transport-port 4001 \
+  -d 127.0.0.1 -p 51820 35182
+```
+
+Docker Desktop does not provide Linux host networking with identical behavior.
+Use bridge networking there, publish the required TCP/UDP ports, and provide an
+explicit relay or public `--announce` address:
+
+```bash
+docker run --rm --init \
+  --name p2p-netcat \
+  --publish 4001:4001/tcp \
+  --publish 4001:4001/udp \
+  --publish 127.0.0.1:15182:15182/udp \
+  --volume p2p-netcat-config:/config \
+  ghcr.io/santaklouse/go-p2p-netcat:latest \
+  -u --bind 0.0.0.0 -p 15182 --transport-port 4001 \
+  12D3KooWQ3uxpHgjDKE6vGmvzKS8RPbxUDLwJ7XCLaD6YXdUfbR9 35182
+```
+
+The target PeerId in that command is a syntactically valid example; an actual
+connection must use the listener's PeerId. Add the same explicit `--relay`
+multiaddr to both peers when direct discovery or reachability is insufficient.
+The Docker-published UDP port remains host-loopback-only even though
+p2p-netcat binds all interfaces inside the isolated container.
+
+Build and test the container locally:
+
+```bash
+docker build --build-arg VERSION=local -t p2p-netcat:local .
+docker run --rm p2p-netcat:local --version
+bash scripts/docker_test.sh
+```
+
+The GitHub Actions release workflow publishes multi-platform OCI images with
+SBOM and provenance attestations using the repository `GITHUB_TOKEN`; no
+long-lived registry token is required. GitHub creates a new container package
+as private by default. After its first publication, a package administrator
+must explicitly select **Public** in the package settings if anonymous pulls
+are desired. Public container packages can then be pulled without login.
 
 ## Install with Go
 

@@ -2,7 +2,7 @@ GO ?= go
 BINARY ?= p2p-nc
 ALIAS ?= pnc
 
-.PHONY: build test vet fmt check clean
+.PHONY: build test test-docker vet fmt check clean
 
 build:
 	GOTOOLCHAIN=auto $(GO) build -o $(BINARY) ./cmd/p2p-nc
@@ -11,6 +11,9 @@ build:
 test:
 	GOTOOLCHAIN=auto $(GO) test ./...
 	bash deploy/deploy_test.sh
+
+test-docker:
+	bash scripts/docker_test.sh
 
 vet:
 	GOTOOLCHAIN=auto $(GO) vet ./...

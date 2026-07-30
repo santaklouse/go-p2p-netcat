@@ -49,7 +49,7 @@ jobs:
           "${RUNNER_TEMP}/actionlint-bin/actionlint"
       - name: Check shell syntax
         shell: bash
-        run: bash -n deploy/deploy.sh deploy/deploy_test.sh scripts/sync-wiki.sh scripts/sync-wiki_test.sh
+        run: bash -n deploy/deploy.sh deploy/deploy_test.sh scripts/docker_test.sh scripts/sync-wiki.sh scripts/sync-wiki_test.sh
 
   test:
     name: Go tests (${{ matrix.os }})
@@ -103,6 +103,30 @@ jobs:
           cache-dependency-path: go.sum
       - name: Run race detector
         run: go test -race -count=1 -timeout=25m ./...
+
+  container:
+    name: Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+      - name: Validate multi-platform build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: false
+          cache-from: type=gha,scope=container-ci
+          cache-to: type=gha,mode=max,scope=container-ci
+      - name: Run container smoke tests
+        run: bash scripts/docker_test.sh
 
   web:
     name: Browser packages

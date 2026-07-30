@@ -15,3 +15,14 @@ updates:
           - "*"
     commit-message:
       prefix: ci
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Kyiv
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: build
