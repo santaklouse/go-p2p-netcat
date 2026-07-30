@@ -87,7 +87,9 @@ p2pnc_wiki_convert() {
 		-e 's|(USE_CASES.md)|(Use-Cases)|g' \
 		-e 's|(WEBRTC_MIGRATION.RU.md)|(WebRTC-Migration-RU)|g' \
 		-e 's|(WEBRTC_MIGRATION.md)|(WebRTC-Migration)|g' \
+		-e 's|(../Dockerfile)|(https://github.com/santaklouse/go-p2p-netcat/blob/main/Dockerfile)|g' \
 		-e 's|(../deploy/deploy.sh)|(https://github.com/santaklouse/go-p2p-netcat/blob/main/deploy/deploy.sh)|g' \
+		-e 's|(../scripts/docker_test.sh)|(https://github.com/santaklouse/go-p2p-netcat/blob/main/scripts/docker_test.sh)|g' \
 		"${p2pnc_wiki_repo_root}/${source}" >"${p2pnc_wiki_temp_dir}/${destination}"
 }
 
@@ -137,7 +139,7 @@ printf '%s\n' \
 	>"${p2pnc_wiki_temp_dir}/_Sidebar.md"
 
 printf '%s\n' \
-	'[Source repository](https://github.com/santaklouse/go-p2p-netcat) · [Releases](https://github.com/santaklouse/go-p2p-netcat/releases) · [Browser PWA](https://santaklouse.github.io/go-p2p-netcat/)' \
+	'[Source repository](https://github.com/santaklouse/go-p2p-netcat) · [Releases](https://github.com/santaklouse/go-p2p-netcat/releases) · [Container](https://github.com/santaklouse/go-p2p-netcat/pkgs/container/go-p2p-netcat) · [Browser PWA](https://santaklouse.github.io/go-p2p-netcat/)' \
 	>"${p2pnc_wiki_temp_dir}/_Footer.md"
 
 for p2pnc_wiki_page in "${p2pnc_wiki_temp_dir}"/*.md; do

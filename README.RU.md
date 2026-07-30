@@ -17,6 +17,18 @@ Deploy-скрипт определяет Linux, macOS или Android и архи
 `p2p-nc`, `pnc` и `p2p-netcat`. Закрепление версии, другой каталог и удаление
 описаны в разделе [установки](docs/INSTALLATION.RU.md#проверяемый-deploy-скрипт).
 
+Linux-контейнеры `amd64`/`arm64` публикуются в
+[GitHub Packages](https://github.com/santaklouse/go-p2p-netcat/pkgs/container/go-p2p-netcat):
+
+```bash
+docker pull ghcr.io/santaklouse/go-p2p-netcat:latest
+docker run --rm ghcr.io/santaklouse/go-p2p-netcat:latest --version
+```
+
+Контейнер работает не от root и хранит постоянную identity в `/config`.
+Listener, UDP, networking, version tags и локальная сборка описаны в разделе
+[Docker и GitHub Packages](docs/INSTALLATION.RU.md#docker-и-github-packages).
+
 Альтернативная установка через Go:
 
 ```bash
@@ -91,7 +103,7 @@ Go-пиры дополнительно поддерживают framed UDP forwa
 
 ## Установка
 
-Текущая стабильная версия — `v0.2.0`. Архив релиза содержит исполняемые файлы
+Текущая стабильная версия — `v0.3.0`. Архив релиза содержит исполняемые файлы
 `p2p-nc` и `pnc`, лицензию MIT и обе версии README. Перед установкой следует проверить
 архив по файлу `SHA256SUMS`.
 
@@ -103,7 +115,7 @@ Go-пиры дополнительно поддерживают framed UDP forwa
 ```bash
 set -euo pipefail
 
-P2PNC_VERSION="v0.2.0"
+P2PNC_VERSION="v0.3.0"
 case "$(uname -m)" in
   x86_64|amd64) P2PNC_ARCH="amd64" ;;
   aarch64|arm64) P2PNC_ARCH="arm64" ;;
@@ -129,7 +141,7 @@ p2p-nc --version
 ```bash
 set -euo pipefail
 
-P2PNC_VERSION="v0.2.0"
+P2PNC_VERSION="v0.3.0"
 case "$(uname -m)" in
   x86_64|amd64) P2PNC_ARCH="amd64" ;;
   arm64|aarch64) P2PNC_ARCH="arm64" ;;
@@ -162,7 +174,7 @@ sudo xattr -d com.apple.quarantine /usr/local/bin/p2p-nc
 
 ```powershell
 $ErrorActionPreference = 'Stop'
-$Version = 'v0.2.0'
+$Version = 'v0.3.0'
 $Architecture = switch ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()) {
     'X64' { 'amd64' }
     'Arm64' { 'arm64' }
@@ -205,7 +217,7 @@ debugging, подключите телефон, установите Android Pla
 ```bash
 set -euo pipefail
 
-P2PNC_VERSION="v0.2.0"
+P2PNC_VERSION="v0.3.0"
 P2PNC_ANDROID_ABI="$(adb shell getprop ro.product.cpu.abi | tr -d '\r')"
 case "$P2PNC_ANDROID_ABI" in
   arm64-v8a) P2PNC_ANDROID_ARCH="arm64" ;;
@@ -242,9 +254,9 @@ toolchain:
 
 ```bash
 GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
-  github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@v0.2.0
+  github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@v0.3.0
 GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
-  github.com/santaklouse/go-p2p-netcat/cmd/pnc@v0.2.0
+  github.com/santaklouse/go-p2p-netcat/cmd/pnc@v0.3.0
 "$(go env GOPATH)/bin/p2p-nc" --version
 ```
 
@@ -423,7 +435,7 @@ frames.
 
 Сборки Linux и macOS публикуются как `.tar.gz`, сборки Windows — как `.zip`.
 Сборки Android также публикуются как `.tar.gz`. Каждый релиз содержит файл
-`SHA256SUMS`. Семантические теги, например `v0.2.0`, создают стабильные релизы.
+`SHA256SUMS`. Семантические теги, например `v0.3.0`, создают стабильные релизы.
 Сборки из `main` помечаются как prerelease и получают детерминированный тег,
 который начинается с `main-` и заканчивается первыми 12 символами SHA коммита.
 Повторный запуск workflow обновляет тот же релиз, а не создаёт дубликат.

@@ -1,0 +1,16 @@
+.git
+.github
+.idea
+.DS_Store
+dist
+p2p-nc
+pnc
+*.test
+*.out
+deploy
+docs
+packages
+scripts
+web
+README.md
+README.RU.md
