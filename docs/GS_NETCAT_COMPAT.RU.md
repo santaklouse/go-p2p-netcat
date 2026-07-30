@@ -2,16 +2,18 @@
 
 [English](GS_NETCAT_COMPAT.md) | **Русский**
 
-Здесь описана реализация опций gs-netcat `-d`, `-p`, `-q`, `-S`, `-T` и `-i`
-в p2p-netcat. Значения опций повторяют gs-netcat, но rendezvous, аутентификация
-и потоки по-прежнему основаны на libp2p PeerId.
+Здесь описана реализация опций gs-netcat `-d`, `-p`, `-u`, `-q`, `-S`, `-T` и
+`-i` в p2p-netcat. Значения опций повторяют gs-netcat, но rendezvous,
+аутентификация и потоки по-прежнему основаны на libp2p PeerId.
 
 ## Соответствие опций
 
 | Опция | Поведение p2p-netcat |
 |---|---|
-| `-d, --destination HOST` | Адрес назначения TCP forwarding на стороне сервера. Требует listener mode и `-p`. |
-| `-p, --port PORT` | В listener mode — порт удалённого назначения. В client mode — локальный TCP listen-порт, где каждое соединение переносится в новый P2P-поток. |
+| `-d, --destination HOST` | Адрес назначения TCP или UDP forwarding на стороне сервера. Требует listener mode и `-p`. |
+| `-p, --port PORT` | В listener mode — порт удалённого назначения. В client mode — локальный TCP или UDP listen-порт, выбранный через `-u`. |
+| `-u, --udp` | UDP forwarding к фиксированному назначению с сохранением границ datagram в отдельном P2P-протоколе. Требует `-p` на обоих пирах. |
+| `--udp-idle-timeout SECONDS` | По умолчанию закрывает неактивную UDP association через 300 секунд. Ноль отключает expiration. |
 | `-q, --quiet` | Скрывает диагностику p2p-netcat в stderr. Прикладные данные stdout не изменяются. |
 | `-S, --socks` | Запускает SOCKS4, SOCKS4a и SOCKS5 CONNECT proxy на стороне listener. |
 | `-T, --tor` | Запускает клиент через `torsocks` и требует явный TCP/WS/WSS Circuit Relay. |
@@ -53,6 +55,36 @@ p2p-nc --bind 0.0.0.0 -p 2222 12D3KooWQ3uxpHgjDKE6vGmvzKS8RPbxUDLwJ7XCLaD6YXdUfb
 однопоточный WebRTC-адаптер. Если прямой libp2p-маршрут недоступен, передайте
 один Circuit Relay серверу forwarding и клиенту.
 
+## UDP forwarding: `-u`
+
+Listener соединяет каждый принятый datagram P2P-stream с одной фиксированной
+UDP-целью:
+
+```bash
+p2p-nc -u -l -k -d 192.168.6.7 -p 51820 35182
+```
+
+Клиент связывает локальный UDP-порт. Каждый отдельный source endpoint получает
+независимый P2P-stream и remote connected UDP socket:
+
+```bash
+p2p-nc -u -p 15182 12D3KooWQ3uxpHgjDKE6vGmvzKS8RPbxUDLwJ7XCLaD6YXdUfbR9 35182
+```
+
+UDP использует `/p2p-netcat/udp/1.0.0/<логический-порт>` отдельно от
+совместимого byte-stream протокола. Каждый пакет кодируется двухбайтной
+big-endian длиной и payload, поэтому пакеты не объединяются и не разрезаются,
+даже если нижний маршрут использует TCP, WSS, Tor или Circuit Relay v2.
+
+Transport остаётся упорядоченным надёжным libp2p-stream. Это даёт максимальную
+совместимость маршрутов, но UDP-over-TCP может страдать от head-of-line
+blocking. Для VPN traffic при возможности предпочтительны прямой QUIC или
+libp2p WebRTC Direct.
+
+`-u` требует `-p` и несовместим с raw stdin/stdout, `-e`, `-i`, `-S`, `-z` и
+`--quit-delay`. Browser-клиент и собственный Nostr/WebTorrent native WebRTC
+adapter пока не предоставляют UDP forwarding.
+
 ## SOCKS proxy: `-S`
 
 Запустите удалённый SOCKS endpoint:
@@ -69,8 +101,9 @@ curl --proxy socks5h://127.0.0.1:1080 https://example.com/
 ```
 
 Поддерживаются SOCKS4 CONNECT, SOCKS4a CONNECT и SOCKS5 CONNECT без
-аутентификации. SOCKS BIND, UDP ASSOCIATE, username/password authentication и
-UDP forwarding не реализованы.
+аутентификации. SOCKS BIND, UDP ASSOCIATE и username/password authentication
+не реализованы. Отдельный режим `-u` перенаправляет одно фиксированное UDP
+назначение и не является SOCKS UDP proxy.
 
 ## Интерактивный PTY: `-i`
 
@@ -154,7 +187,7 @@ TCP-соединение клиент → relay проходит через Tor,
 Noise, QUIC TLS и подписанный challenge интерактивного WebRTC аутентифицируют
 PeerId сервера и защищают содержимое потока. Они не авторизуют клиента. В
 текущей версии любой пир, знающий PeerId listener и логический порт, может
-попытаться использовать `-d`, `-S`, `-e` или `-i`.
+попытаться использовать `-d`, `-u`, `-S`, `-e` или `-i`.
 
 Поэтому:
 

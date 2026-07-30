@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/spf13/cobra"
 )
 
 func TestCombinedBooleanShortOptions(t *testing.T) {
@@ -52,6 +53,10 @@ func TestNodeConfigHonorsDiscoveryAndTorFlags(t *testing.T) {
 func TestRootRejectsInvalidAndUnsupportedCombinations(t *testing.T) {
 	for _, args := range [][]string{
 		{"-u"},
+		{"-u", "-p", "51820", "-i"},
+		{"-u", "-p", "51820", "-z"},
+		{"-u", "-p", "51820", "--udp-idle-timeout", "-1"},
+		{"--udp-idle-timeout", "0"},
 		{"-w", "0"},
 		{"-p", "0"},
 		{"-4", "-6"},
@@ -64,6 +69,35 @@ func TestRootRejectsInvalidAndUnsupportedCombinations(t *testing.T) {
 		command.SetArgs(args)
 		if err := command.Execute(); err == nil {
 			t.Errorf("NewRoot().Execute(%q) succeeded, want error", args)
+		}
+	}
+}
+
+func TestValidateUDPForwardingOptions(t *testing.T) {
+	command := &cobra.Command{}
+	command.Flags().Int("port", 0, "")
+	if err := command.Flags().Set("port", "51820"); err != nil {
+		t.Fatal(err)
+	}
+	for _, opts := range []*options{
+		{
+			listen:         true,
+			udp:            true,
+			port:           51820,
+			timeout:        60,
+			udpIdleTimeout: 300,
+		},
+		{
+			udp:            true,
+			port:           51820,
+			timeout:        60,
+			udpIdleTimeout: 0,
+			tor:            true,
+			relays:         []string{"/ip4/127.0.0.1/tcp/9090"},
+		},
+	} {
+		if err := validateOptions(command, opts, []string{"31337"}); err != nil {
+			t.Fatalf("validateOptions(%+v): %v", opts, err)
 		}
 	}
 }

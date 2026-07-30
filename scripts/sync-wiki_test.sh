@@ -18,11 +18,13 @@ p2pnc_wiki_test_count="$(
 		wc -l |
 		tr -d ' '
 )"
-[[ "${p2pnc_wiki_test_count}" == "18" ]]
+[[ "${p2pnc_wiki_test_count}" == "20" ]]
 
 for p2pnc_wiki_test_page in \
 	Home.md \
 	Home-RU.md \
+	Datagram-Protocol.md \
+	Datagram-Protocol-RU.md \
 	Use-Cases.md \
 	Use-Cases-RU.md \
 	_Sidebar.md \

@@ -9,6 +9,8 @@ TypeScript core и статический PWA.
 
 - identity: protobuf-ключи libp2p Ed25519 и постоянный PeerId;
 - прикладной протокол: `/p2p-netcat/1.0.0/<логический-порт>`;
+- протокол UDP forwarding: `/p2p-netcat/udp/1.0.0/<логический-порт>`, где
+  datagram кодируется big-endian uint16 длиной и точным payload;
 - PTY frames: тип в одном байте и big-endian 32-битная длина payload;
 - pairing: deterministic CBOR token `pnc1_`, HKDF-SHA-256, AES-256-GCM,
   вращающийся rendezvous и фиксированный mutual admission handshake;
@@ -31,6 +33,11 @@ Circuit Relay и остальные адреса. Собственная native 
 Pairing-token режим отключает публичный discovery, выводит приватные
 DHT/signaling rendezvous, шифрует signaling и аутентифицирует поток до
 передачи прикладных байтов.
+
+UDP mode использует стандартные libp2p stream transports. При доступности
+предпочитаются прямой QUIC и libp2p WebRTC Direct, а TCP, WSS, Tor через TCP
+relay и Circuit Relay v2 дают UDP-over-stream fallback. Собственный
+Nostr/WebTorrent native WebRTC adapter для UDP associations не используется.
 
 ## Native WebRTC
 
@@ -66,11 +73,15 @@ HTTPS-браузер принимает WebTransport, native WebRTC или secur
 - raw stdin/stdout;
 - выполнение shell-команды;
 - локальный или удалённый TCP forwarding;
+- UDP forwarding к фиксированному назначению с сохранением границ пакетов и
+  отдельной association на каждый локальный source endpoint;
 - SOCKS4/4a/5 CONNECT;
 - интерактивный PTY (Unix PTY либо Windows ConPTY).
 
 `-w` ограничивает discovery/connect, а при явном указании в raw-режиме также
-задаёт inactivity timeout. `-k` оставляет listener открытым для новых сеансов.
+задаёт inactivity timeout. UDP associations по умолчанию истекают через пять
+минут; `--udp-idle-timeout 0` отключает expiration. `-k` оставляет listener
+открытым для новых сеансов.
 
 ## Relay
 
@@ -85,8 +96,8 @@ HTTPS-браузер принимает WebTransport, native WebRTC или secur
 |---|---|
 | `p2p/` | libp2p host, transports, discovery, DHT, relay reservations |
 | `nativewebrtc/` | Pion endpoint, signaling, authentication, reconnecting stream |
-| `protocol/` | wire-форматы pairing, admission, PTY и signed route |
-| `session/` | raw, exec, forwarding, SOCKS, PTY, ConPTY |
+| `protocol/` | wire-форматы pairing, admission, datagram, PTY и signed route |
+| `session/` | raw, exec, TCP/UDP forwarding, SOCKS, PTY, ConPTY |
 | `relay/` | публичный встраиваемый relay API |
 | `internal/cli/` | CLI validation и оркестрация listener/client |
 | `packages/core/` | browser-safe protocol и native WebRTC library |

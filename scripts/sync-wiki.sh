@@ -39,6 +39,8 @@ p2pnc_wiki_convert() {
 	sed \
 		-e 's|docs/ARCHITECTURE.RU.md|Architecture-RU|g' \
 		-e 's|docs/ARCHITECTURE.md|Architecture|g' \
+		-e 's|docs/DATAGRAM_PROTOCOL.RU.md|Datagram-Protocol-RU|g' \
+		-e 's|docs/DATAGRAM_PROTOCOL.md|Datagram-Protocol|g' \
 		-e 's|docs/GS_NETCAT_COMPAT.RU.md|gs-netcat-Compatibility-RU|g' \
 		-e 's|docs/GS_NETCAT_COMPAT.md|gs-netcat-Compatibility|g' \
 		-e 's|docs/INSTALLATION.RU.md|Installation-RU|g' \
@@ -55,6 +57,8 @@ p2pnc_wiki_convert() {
 		-e 's|(README.md)|(Home)|g' \
 		-e 's|(docs/ARCHITECTURE.RU.md)|(Architecture-RU)|g' \
 		-e 's|(docs/ARCHITECTURE.md)|(Architecture)|g' \
+		-e 's|(docs/DATAGRAM_PROTOCOL.RU.md)|(Datagram-Protocol-RU)|g' \
+		-e 's|(docs/DATAGRAM_PROTOCOL.md)|(Datagram-Protocol)|g' \
 		-e 's|(docs/GS_NETCAT_COMPAT.RU.md)|(gs-netcat-Compatibility-RU)|g' \
 		-e 's|(docs/GS_NETCAT_COMPAT.md)|(gs-netcat-Compatibility)|g' \
 		-e 's|(docs/INSTALLATION.RU.md)|(Installation-RU)|g' \
@@ -69,6 +73,8 @@ p2pnc_wiki_convert() {
 		-e 's|(docs/WEBRTC_MIGRATION.md)|(WebRTC-Migration)|g' \
 		-e 's|(ARCHITECTURE.RU.md)|(Architecture-RU)|g' \
 		-e 's|(ARCHITECTURE.md)|(Architecture)|g' \
+		-e 's|(DATAGRAM_PROTOCOL.RU.md)|(Datagram-Protocol-RU)|g' \
+		-e 's|(DATAGRAM_PROTOCOL.md)|(Datagram-Protocol)|g' \
 		-e 's|(GS_NETCAT_COMPAT.RU.md)|(gs-netcat-Compatibility-RU)|g' \
 		-e 's|(GS_NETCAT_COMPAT.md)|(gs-netcat-Compatibility)|g' \
 		-e 's|(INSTALLATION.RU.md)|(Installation-RU)|g' \
@@ -89,6 +95,8 @@ p2pnc_wiki_convert README.md Home.md
 p2pnc_wiki_convert README.RU.md Home-RU.md
 p2pnc_wiki_convert docs/ARCHITECTURE.md Architecture.md
 p2pnc_wiki_convert docs/ARCHITECTURE.RU.md Architecture-RU.md
+p2pnc_wiki_convert docs/DATAGRAM_PROTOCOL.md Datagram-Protocol.md
+p2pnc_wiki_convert docs/DATAGRAM_PROTOCOL.RU.md Datagram-Protocol-RU.md
 p2pnc_wiki_convert docs/GS_NETCAT_COMPAT.md gs-netcat-Compatibility.md
 p2pnc_wiki_convert docs/GS_NETCAT_COMPAT.RU.md gs-netcat-Compatibility-RU.md
 p2pnc_wiki_convert docs/INSTALLATION.md Installation.md
@@ -109,6 +117,7 @@ printf '%s\n' \
 	'- [[Practical use cases|Use-Cases]]' \
 	'- [[Installation]]' \
 	'- [[Architecture]]' \
+	'- [[Datagram forwarding protocol|Datagram-Protocol]]' \
 	'- [[gs-netcat compatibility|gs-netcat-Compatibility]]' \
 	'- [[Pairing protocol|Pairing-Protocol]]' \
 	'- [[Relay API|Relay-API]]' \
@@ -120,6 +129,7 @@ printf '%s\n' \
 	'- [[Практические сценарии|Use-Cases-RU]]' \
 	'- [[Установка|Installation-RU]]' \
 	'- [[Архитектура|Architecture-RU]]' \
+	'- [[Протокол datagram forwarding|Datagram-Protocol-RU]]' \
 	'- [[Совместимость с gs-netcat|gs-netcat-Compatibility-RU]]' \
 	'- [[Pairing protocol|Pairing-Protocol-RU]]' \
 	'- [[Relay API|Relay-API-RU]]' \

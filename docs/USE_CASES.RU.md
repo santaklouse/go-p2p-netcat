@@ -191,7 +191,8 @@ curl --proxy socks5h://127.0.0.1:1080 https://example.com/
 
 SOCKS поддерживает CONNECT без username/password-аутентификации. Защитите
 P2P-сервис pairing token и оставьте локальный listener на loopback. SOCKS BIND,
-UDP ASSOCIATE и UDP-forwarding не поддерживаются.
+и UDP ASSOCIATE не поддерживаются. UDP forwarding к фиксированному назначению
+доступен через `-u -p`.
 
 ## OpenVPN через p2p-netcat
 
@@ -240,28 +241,104 @@ sudo openvpn --config ./client.ovpn
 P2P-stream. Это совместимо, но при потере пакетов может усиливать head-of-line
 blocking. Если доступен прямой OpenVPN UDP, он обычно предпочтительнее.
 
-## WireGuard: важное ограничение
+## WireGuard и UDP forwarding с сохранением пакетов
 
-WireGuard передаёт зашифрованные IP-пакеты только через UDP. p2p-netcat сейчас
-предоставляет надёжные byte streams и намеренно отклоняет `-u`, поэтому
-WireGuard endpoint нельзя перенаправить напрямую:
+WireGuard передаёт зашифрованные IP-пакеты только через UDP. Режим forwarding
+`-u` сохраняет каждый UDP-пакет как один length-prefixed frame внутри
+P2P-stream. Поэтому он работает через прямой libp2p QUIC/WebRTC, TCP/WSS, Tor с
+явным TCP relay и Circuit Relay v2.
+
+Предположим, что на удалённой машине WireGuard слушает UDP `51820`. Для
+локального forwarding используйте другой порт, например `15182`, чтобы не
+конфликтовать с локальным WireGuard `ListenPort`.
+
+На машине WireGuard-сервера:
 
 ```bash
-p2p-nc -u -l 51820
+p2p-nc -u -l -k -d 127.0.0.1 -p 51820 35182
 ```
 
-Используйте один из поддерживаемых вариантов:
+На машине WireGuard-клиента:
 
-- OpenVPN в режимах `tcp-server`/`tcp-client`;
-- SOCKS proxy для выбранных приложений;
-- отдельные TCP-forwards для SSH, баз данных, HTTP, RDP и других сервисов;
-- внешний UDP-over-stream bridge, сохраняющий границы datagram, после которого
-  используется TCP-forwarding p2p-netcat.
+```bash
+p2p-nc -u -p 15182 "${P2PNC_PEER_ID}" 35182
+```
 
-Не ставьте обычный `socat UDP:... TCP:...` на обоих концах: TCP-stream не
-сохраняет границы UDP-datagram, поэтому пакеты WireGuard могут объединяться или
-разделяться. Для нативного datagram-forwarding потребуется будущее расширение
-протокола.
+Добавьте эти transport-параметры в клиентскую конфигурацию WireGuard:
+
+```ini
+[Interface]
+MTU = 1280
+
+[Peer]
+Endpoint = 127.0.0.1:15182
+PersistentKeepalive = 25
+```
+
+Первый пакет от локального source endpoint создаёт один P2P-stream и один
+connected UDP socket на удалённой стороне. Ответы возвращаются только этому
+source. Разные локальные source endpoints используют независимые streams,
+поэтому их пакеты и ответы не смешиваются.
+
+По умолчанию неактивная association закрывается через 300 секунд.
+`PersistentKeepalive = 25` сохраняет association и NAT state. Если сервис
+должен сохранять association без собственного keepalive, отключите expiration
+в обоих процессах p2p-netcat:
+
+```bash
+p2p-nc -u --udp-idle-timeout 0 -l -k -d 127.0.0.1 -p 51820 35182
+p2p-nc -u --udp-idle-timeout 0 -p 15182 "${P2PNC_PEER_ID}" 35182
+```
+
+Если logical service или destination не публичны, защитите listener через
+pairing token. Pairing-аутентификация завершается до приёма UDP frames.
+
+### Выбор транспорта и компромиссы
+
+| Маршрут | Поведение |
+|---|---|
+| Прямой QUIC или libp2p WebRTC Direct | Обычно лучший маршрут при доступном UDP. Границы datagram сохраняются, но приложение всё равно использует упорядоченный надёжный libp2p-stream. |
+| Прямой TCP или WSS | UDP-over-stream работает через TCP-only firewall. Потеря одного внешнего TCP segment задерживает последующие WireGuard-пакеты из-за head-of-line blocking. |
+| Circuit Relay v2 через TCP/WSS | Надёжный fallback за сложным NAT. Добавляет latency relay и такое же head-of-line поведение. |
+| Tor и явный TCP/WSS relay | Поддерживается для reachability/privacy routing, но обычно слишком медленно для VPN общего назначения. |
+
+Чтобы принудительно использовать UDP-over-TCP, передайте обоим пирам явный
+TCP/WSS relay и при необходимости отключите direct discovery:
+
+```bash
+export P2PNC_RELAY=/dns4/relay.example.net/tcp/443/wss/p2p/12D3KooWEqeQRAJ61HSv9yMPk8yzjke7NxmTFcvFt4GzwXxzVjXW
+
+p2p-nc -u -l -k \
+  --relay "${P2PNC_RELAY}" \
+  --no-quic --no-webrtc --no-mdns --no-pubsub --no-dht \
+  -d 127.0.0.1 -p 51820 35182
+
+p2p-nc -u -p 15182 \
+  --relay "${P2PNC_RELAY}" \
+  --no-quic --no-webrtc --no-mdns --no-pubsub --no-dht \
+  "${P2PNC_PEER_ID}" 35182
+```
+
+Framing исключает объединение и разрезание пакетов, которое возникает у
+обычного `socat UDP:... TCP:...`. Оно не превращает TCP в ненадёжный datagram
+transport: если внутри WireGuard передаётся TCP, потеря пакета может вызвать
+вложенный head-of-line blocking. По возможности используйте прямой
+QUIC/WebRTC-маршрут, задайте консервативный WireGuard MTU, например `1280`, и
+проведите benchmark до переноса latency-sensitive traffic.
+
+Этот же режим подходит для OpenVPN UDP, DNS, игровых протоколов и других
+UDP-сервисов с фиксированным назначением:
+
+```bash
+# Машина OpenVPN UDP-сервера
+p2p-nc -u -l -k -d 127.0.0.1 -p 1194 31194
+
+# Машина OpenVPN UDP-клиента; в OpenVPN задайте remote 127.0.0.1 11194 udp
+p2p-nc -u -p 11194 "${P2PNC_PEER_ID}" 31194
+```
+
+SOCKS5 UDP ASSOCIATE и нативные ненадёжные QUIC datagrams являются отдельными
+протоколами и не реализованы этим fixed-destination mode.
 
 ## Интерактивная оболочка и запуск команд
 

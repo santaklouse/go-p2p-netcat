@@ -56,10 +56,11 @@ p2p-netcat --version
 ```
 
 A Go implementation of `p2p-netcat`: a bidirectional netcat-like stream
-addressed by a libp2p `PeerId` instead of an IP address. The
-`/p2p-netcat/1.0.0/<logical-port>` wire protocol, identity files, pairing
+addressed by a libp2p `PeerId` instead of an IP address. The existing
+`/p2p-netcat/1.0.0/<logical-port>` stream protocol, identity files, pairing
 tokens, admission handshake, and PTY frames are compatible with the original
-JavaScript implementation.
+JavaScript implementation. Go peers additionally support framed UDP forwarding
+through `/p2p-netcat/udp/1.0.0/<logical-port>`.
 
 ## Porting status
 
@@ -75,9 +76,9 @@ Implemented:
 - native WebRTC v2 with Nostr/WebTorrent signaling, PeerId authentication,
   pairing-token encryption, flow control, 120-second stream resumption, and
   libp2p route racing;
-- raw stdin/stdout, `-e`, TCP forwarding, SOCKS4/4a/5, and PTY sessions,
-  including Windows ConPTY;
-- `-l`, `-k`, `-w`, `-d`, `-p`, `-q`, `-S`, `-T`, `-i`, `-z`, `-e`,
+- raw stdin/stdout, `-e`, TCP and packet-preserving UDP forwarding,
+  SOCKS4/4a/5, and PTY sessions, including Windows ConPTY;
+- `-l`, `-k`, `-w`, `-d`, `-p`, `-u`, `-q`, `-S`, `-T`, `-i`, `-z`, `-e`,
   `-4`, `-6`, relay, id, and token commands;
 - the `p2p-nc` and short `pnc` command names;
 - the browser-safe core and static English/Russian PWA in `packages/core` and
@@ -356,6 +357,20 @@ Forward a local TCP port to `127.0.0.1:5432` on the remote peer:
 ./p2p-nc -p 15432 12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 15432
 ```
 
+Forward a local UDP endpoint to WireGuard on the remote peer:
+
+```bash
+# WireGuard host
+./p2p-nc -u -l -d 127.0.0.1 -p 51820 35182
+
+# WireGuard client host
+./p2p-nc -u -p 15182 12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 35182
+```
+
+Set the WireGuard peer endpoint on the client to `127.0.0.1:15182`.
+`p2p-nc` keeps UDP packet boundaries while carrying the packets through the
+selected libp2p stream, including TCP/WSS and Circuit Relay routes.
+
 Run a SOCKS server on the remote peer:
 
 ```bash
@@ -430,10 +445,11 @@ adb shell /data/local/tmp/p2p-nc --version
 ## Documentation
 
 - [Practical usage cookbook](docs/USE_CASES.md): OpenSSH, OpenVPN,
-  port-forwarding, SOCKS, WireGuard limitations, file transfer, relay, and
+  TCP/UDP forwarding, SOCKS, WireGuard, file transfer, relay, and
   systemd examples.
 - [Installation](docs/INSTALLATION.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Datagram forwarding protocol](docs/DATAGRAM_PROTOCOL.md)
 - [gs-netcat compatibility](docs/GS_NETCAT_COMPAT.md)
 - [Pairing protocol](docs/PAIRING_PROTOCOL.md)
 - [Relay API](docs/RELAY_API.md)

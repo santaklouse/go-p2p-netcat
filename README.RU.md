@@ -56,9 +56,11 @@ p2p-netcat --version
 ```
 
 Go-реализация `p2p-netcat`: двунаправленный netcat-подобный поток, адресуемый
-по libp2p `PeerId`, а не по IP-адресу. Wire-протокол
+по libp2p `PeerId`, а не по IP-адресу. Существующий stream-протокол
 `/p2p-netcat/1.0.0/<логический-порт>`, identity-файлы, pairing token,
 admission handshake и PTY frames совместимы с исходной JavaScript-версией.
+Go-пиры дополнительно поддерживают framed UDP forwarding через
+`/p2p-netcat/udp/1.0.0/<логический-порт>`.
 
 ## Состояние переноса
 
@@ -74,9 +76,9 @@ admission handshake и PTY frames совместимы с исходной JavaS
 - native WebRTC v2 с Nostr/WebTorrent signaling, проверкой PeerId,
   шифрованием через pairing token, flow control, 120-секундным восстановлением
   потока и гонкой libp2p-маршрутов;
-- raw stdin/stdout, `-e`, TCP forwarding, SOCKS4/4a/5 и PTY, включая
-  Windows ConPTY;
-- `-l`, `-k`, `-w`, `-d`, `-p`, `-q`, `-S`, `-T`, `-i`, `-z`, `-e`,
+- raw stdin/stdout, `-e`, TCP и сохраняющий границы пакетов UDP forwarding,
+  SOCKS4/4a/5 и PTY, включая Windows ConPTY;
+- `-l`, `-k`, `-w`, `-d`, `-p`, `-u`, `-q`, `-S`, `-T`, `-i`, `-z`, `-e`,
   `-4`, `-6`, relay, id и token;
 - имена команд `p2p-nc` и короткое `pnc`;
 - browser-safe core и статический англо-/русскоязычный PWA в `packages/core`
@@ -353,6 +355,20 @@ Token содержит PeerId и логический порт, поэтому �
 ./p2p-nc -p 15432 12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 15432
 ```
 
+Перенаправление локального UDP endpoint к WireGuard на удалённом пире:
+
+```bash
+# Машина с WireGuard-сервером
+./p2p-nc -u -l -d 127.0.0.1 -p 51820 35182
+
+# Машина с WireGuard-клиентом
+./p2p-nc -u -p 15182 12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 35182
+```
+
+В WireGuard-конфигурации клиента укажите peer endpoint
+`127.0.0.1:15182`. `p2p-nc` сохраняет границы UDP-пакетов при переносе через
+выбранный libp2p-stream, включая TCP/WSS и Circuit Relay.
+
 SOCKS server на удалённой стороне:
 
 ```bash
@@ -427,10 +443,11 @@ adb shell /data/local/tmp/p2p-nc --version
 ## Документация
 
 - [Практические сценарии](docs/USE_CASES.RU.md): OpenSSH, OpenVPN,
-  port-forwarding, SOCKS, ограничения WireGuard, передача файлов, relay и
+  TCP/UDP forwarding, SOCKS, WireGuard, передача файлов, relay и
   systemd.
 - [Установка](docs/INSTALLATION.RU.md)
 - [Архитектура](docs/ARCHITECTURE.RU.md)
+- [Протокол datagram forwarding](docs/DATAGRAM_PROTOCOL.RU.md)
 - [Совместимость с gs-netcat](docs/GS_NETCAT_COMPAT.RU.md)
 - [Pairing protocol](docs/PAIRING_PROTOCOL.RU.md)
 - [Relay API](docs/RELAY_API.RU.md)

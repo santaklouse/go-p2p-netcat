@@ -193,7 +193,8 @@ using SOCKS v5” enabled.
 
 SOCKS supports CONNECT with no username/password authentication. Protect the
 P2P service with a pairing token and keep the local listener on loopback.
-SOCKS BIND, UDP ASSOCIATE, and UDP forwarding are not supported.
+SOCKS BIND and UDP ASSOCIATE are not supported. Fixed-destination UDP
+forwarding is available through `-u -p`.
 
 ## OpenVPN through p2p-netcat
 
@@ -242,27 +243,105 @@ This creates nested reliable transports (OpenVPN TCP inside a reliable P2P
 stream). It is compatible but can amplify head-of-line blocking under packet
 loss. Prefer direct OpenVPN UDP when it is reachable.
 
-## WireGuard: important limitation
+## WireGuard and packet-preserving UDP forwarding
 
-WireGuard transports encrypted IP packets exclusively over UDP. p2p-netcat
-currently exposes reliable byte streams and intentionally rejects `-u`, so a
-WireGuard endpoint cannot be forwarded directly:
+WireGuard transports encrypted IP packets exclusively over UDP. The `-u`
+forwarding mode preserves every UDP packet as one length-prefixed frame on the
+P2P stream. It therefore works through direct libp2p QUIC/WebRTC connections,
+TCP/WSS, Tor with an explicit TCP relay, and Circuit Relay v2.
+
+Assume WireGuard listens on UDP `51820` on the remote host. Use a different
+local forwarding port, such as `15182`, so it does not conflict with a local
+WireGuard `ListenPort`.
+
+On the WireGuard server host:
 
 ```bash
-p2p-nc -u -l 51820
+p2p-nc -u -l -k -d 127.0.0.1 -p 51820 35182
 ```
 
-Use one of these supported designs instead:
+On the WireGuard client host:
 
-- OpenVPN in `tcp-server`/`tcp-client` mode as shown above;
-- a SOCKS proxy for selected applications;
-- individual TCP forwards for SSH, databases, HTTP, RDP, and similar services;
-- an external UDP-over-stream bridge that preserves datagram boundaries,
-  followed by p2p-netcat TCP forwarding.
+```bash
+p2p-nc -u -p 15182 "${P2PNC_PEER_ID}" 35182
+```
 
-Do not place plain `socat UDP:... TCP:...` on both ends: a TCP stream does not
-preserve UDP datagram boundaries, and WireGuard packets can be merged or split.
-Native datagram forwarding requires a future protocol extension.
+Merge these transport values into the client WireGuard configuration:
+
+```ini
+[Interface]
+MTU = 1280
+
+[Peer]
+Endpoint = 127.0.0.1:15182
+PersistentKeepalive = 25
+```
+
+The first packet from a local source endpoint creates one P2P stream and one
+connected UDP socket on the remote side. Replies are returned only to that
+source. Different local source endpoints use independent streams, so their
+packets and replies cannot be mixed.
+
+Idle associations close after 300 seconds by default. WireGuard's
+`PersistentKeepalive = 25` keeps the association and NAT state active. For a
+service that must retain an association without an application keepalive,
+disable expiration on both p2p-netcat processes:
+
+```bash
+p2p-nc -u --udp-idle-timeout 0 -l -k -d 127.0.0.1 -p 51820 35182
+p2p-nc -u --udp-idle-timeout 0 -p 15182 "${P2PNC_PEER_ID}" 35182
+```
+
+Protect the listener with a pairing token when the logical service or
+destination is not public. Pairing authentication completes before UDP frames
+are accepted.
+
+### Transport choices and tradeoffs
+
+| Route | Behavior |
+|---|---|
+| Direct QUIC or libp2p WebRTC Direct | Usually the best route when UDP is reachable. Datagram boundaries are preserved, but the application still uses an ordered reliable libp2p stream. |
+| Direct TCP or WSS | UDP-over-stream works through TCP-only firewalls. Loss of one outer TCP segment delays later WireGuard packets because of head-of-line blocking. |
+| Circuit Relay v2 over TCP/WSS | Reliable fallback behind difficult NAT. It adds relay latency and the same head-of-line behavior. |
+| Tor plus an explicit TCP/WSS relay | Supported for reachability/privacy routing, but normally too slow for a general-purpose VPN. |
+
+To force UDP-over-TCP, give both peers an explicit TCP/WSS relay and disable
+direct discovery as appropriate:
+
+```bash
+export P2PNC_RELAY=/dns4/relay.example.net/tcp/443/wss/p2p/12D3KooWEqeQRAJ61HSv9yMPk8yzjke7NxmTFcvFt4GzwXxzVjXW
+
+p2p-nc -u -l -k \
+  --relay "${P2PNC_RELAY}" \
+  --no-quic --no-webrtc --no-mdns --no-pubsub --no-dht \
+  -d 127.0.0.1 -p 51820 35182
+
+p2p-nc -u -p 15182 \
+  --relay "${P2PNC_RELAY}" \
+  --no-quic --no-webrtc --no-mdns --no-pubsub --no-dht \
+  "${P2PNC_PEER_ID}" 35182
+```
+
+The framing prevents the packet merging/splitting problem caused by a plain
+`socat UDP:... TCP:...` bridge. It does not turn TCP into an unreliable
+datagram transport: when tunneled IP traffic itself contains TCP, packet loss
+can produce nested head-of-line blocking. Prefer a direct QUIC/WebRTC route,
+use a conservative WireGuard MTU such as `1280`, and benchmark before carrying
+latency-sensitive traffic.
+
+The same mode works for OpenVPN UDP, DNS, game protocols, and other
+fixed-destination UDP services:
+
+```bash
+# OpenVPN UDP server host
+p2p-nc -u -l -k -d 127.0.0.1 -p 1194 31194
+
+# OpenVPN UDP client host; configure OpenVPN remote 127.0.0.1 11194 udp
+p2p-nc -u -p 11194 "${P2PNC_PEER_ID}" 31194
+```
+
+SOCKS5 UDP ASSOCIATE and native unreliable QUIC datagrams are separate
+protocols and are not implemented by this fixed-destination mode.
 
 ## Interactive shell and command execution
 

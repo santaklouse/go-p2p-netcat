@@ -9,6 +9,8 @@ browser-safe TypeScript core and static PWA.
 
 - identity: libp2p protobuf Ed25519 private/public keys and stable PeerId;
 - application protocol: `/p2p-netcat/1.0.0/<logical-port>`;
+- UDP forwarding protocol: `/p2p-netcat/udp/1.0.0/<logical-port>`, with each
+  datagram encoded as a big-endian uint16 length followed by the exact payload;
 - PTY frames: one-byte type plus big-endian 32-bit payload length;
 - pairing: deterministic CBOR `pnc1_` tokens, HKDF-SHA-256, AES-256-GCM,
   rotating rendezvous, and the fixed mutual admission handshake;
@@ -30,6 +32,11 @@ authenticated route wins.
 Pairing-token mode suppresses public discovery, derives private DHT/signaling
 rendezvous, encrypts signaling, and authenticates the stream before exposing
 application bytes.
+
+UDP mode uses the standard libp2p stream transports. Direct QUIC and libp2p
+WebRTC Direct are preferred when reachable, while TCP, WSS, Tor through a TCP
+relay, and Circuit Relay v2 provide UDP-over-stream fallbacks. The custom
+Nostr/WebTorrent native WebRTC adapter is not used for UDP associations.
 
 ## Native WebRTC
 
@@ -64,12 +71,15 @@ Every accepted stream is connected to one of:
 - raw stdin/stdout;
 - shell command execution;
 - local or remote TCP forwarding;
+- fixed-destination UDP forwarding with packet boundaries and one association
+  per local source endpoint;
 - SOCKS4/4a/5 CONNECT;
 - interactive PTY (Unix PTY or Windows ConPTY).
 
 `-w` limits discovery/connect time and, when explicitly supplied for raw mode,
-also acts as an inactivity timeout. `-k` keeps a listener open for additional
-sessions.
+also acts as an inactivity timeout. UDP associations expire after five minutes
+by default; `--udp-idle-timeout 0` disables expiration. `-k` keeps a listener
+open for additional sessions.
 
 ## Relay
 
@@ -84,8 +94,8 @@ two-hour/128-MiB default limit and GossipSub peer exchange.
 |---|---|
 | `p2p/` | libp2p host, transports, discovery, DHT, relay reservations |
 | `nativewebrtc/` | Pion endpoint, signaling, authentication, reconnecting stream |
-| `protocol/` | pairing, admission, PTY, and signed route wire formats |
-| `session/` | raw, exec, forwarding, SOCKS, PTY, ConPTY |
+| `protocol/` | pairing, admission, datagram, PTY, and signed route wire formats |
+| `session/` | raw, exec, TCP/UDP forwarding, SOCKS, PTY, ConPTY |
 | `relay/` | public embeddable relay API |
 | `internal/cli/` | CLI validation and listener/client orchestration |
 | `packages/core/` | browser-safe protocol and native WebRTC library |

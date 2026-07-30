@@ -41,6 +41,7 @@ type options struct {
 	zero             bool
 	exec             string
 	udp              bool
+	udpIdleTimeout   int
 	transportPort    int
 	ipv4             bool
 	ipv6             bool
@@ -85,15 +86,21 @@ func NewRoot() *cobra.Command {
 	flags.BoolVarP(&opts.keepOpen, "keep-open", "k", false, "keep accepting connections")
 	flags.IntVarP(&opts.timeout, "timeout", "w", 60, "discovery and connection timeout in seconds")
 	flags.IntVar(&opts.quitDelay, "quit-delay", 0, "delay closing after stdin EOF, in seconds")
-	flags.StringVarP(&opts.destination, "destination", "d", "", "server-side TCP forwarding destination")
-	flags.IntVarP(&opts.port, "port", "p", 0, "destination port with -l or client local listen port")
+	flags.StringVarP(&opts.destination, "destination", "d", "", "server-side TCP/UDP forwarding destination")
+	flags.IntVarP(&opts.port, "port", "p", 0, "destination port with -l or client local TCP/UDP listen port")
 	flags.BoolVarP(&opts.quiet, "quiet", "q", false, "suppress diagnostics")
 	flags.BoolVarP(&opts.socks, "socks", "S", false, "run a SOCKS4/4a/5 server on the remote side")
 	flags.BoolVarP(&opts.tor, "tor", "T", false, "connect to a relay through Tor/torsocks")
 	flags.BoolVarP(&opts.interactive, "interactive", "i", false, "run an interactive PTY login shell")
 	flags.BoolVarP(&opts.zero, "zero", "z", false, "check connectivity without transferring data")
 	flags.StringVarP(&opts.exec, "exec", "e", "", "attach the server stream to a shell command")
-	flags.BoolVarP(&opts.udp, "udp", "u", false, "UDP mode (not supported)")
+	flags.BoolVarP(&opts.udp, "udp", "u", false, "preserve UDP datagrams over a P2P stream; requires -p")
+	flags.IntVar(
+		&opts.udpIdleTimeout,
+		"udp-idle-timeout",
+		int(session.DefaultUDPIdleTimeout/time.Second),
+		"close an idle UDP source association after this many seconds; 0 disables",
+	)
 	addNodeFlags(root, opts)
 	root.AddCommand(newIDCommand(), newTokenCommand(), newRelayCommand())
 	root.InitDefaultVersionFlag()
@@ -119,7 +126,7 @@ func addNodeFlags(command *cobra.Command, opts *options) {
 	flags.BoolVar(&opts.noWebRTC, "no-webrtc", false, "disable WebRTC Direct and native Nostr/WebTorrent WebRTC")
 	flags.StringVar(&opts.pairingToken, "pairing-token", "", "private pnc1_... pairing token")
 	flags.StringVar(&opts.pairingTokenFile, "pairing-token-file", "", "read a pairing token from a file")
-	flags.StringVar(&opts.bind, "bind", "127.0.0.1", "local bind address for -p forwarding")
+	flags.StringVar(&opts.bind, "bind", "127.0.0.1", "local bind address for TCP/UDP -p forwarding")
 	flags.BoolVar(&opts.json, "json", false, "write node information as JSON to stderr")
 	flags.BoolVarP(&opts.verbose, "verbose", "v", false, "enable verbose diagnostics")
 }
@@ -131,14 +138,23 @@ func validateOptions(command *cobra.Command, opts *options, args []string) error
 	if opts.quitDelay < 0 || opts.transportPort < 0 || opts.transportPort > 65535 {
 		return errors.New("ports and delays cannot be negative")
 	}
+	if opts.udpIdleTimeout < 0 {
+		return errors.New("--udp-idle-timeout cannot be negative")
+	}
+	if command.Flags().Changed("udp-idle-timeout") && !opts.udp {
+		return errors.New("--udp-idle-timeout requires -u/--udp")
+	}
 	if opts.port < 0 || opts.port > 65535 || (command.Flags().Changed("port") && opts.port == 0) {
 		return errors.New("-p/--port must be between 1 and 65535")
 	}
 	if opts.ipv4 && opts.ipv6 {
 		return errors.New("-4 and -6 cannot be used together")
 	}
-	if opts.udp {
-		return errors.New("-u is not supported: the protocol carries a reliable bidirectional byte stream")
+	if opts.udp && opts.port == 0 {
+		return errors.New("-u/--udp requires -p/--port for UDP forwarding")
+	}
+	if opts.udp && (opts.socks || opts.interactive || opts.zero || opts.exec != "" || opts.quitDelay != 0) {
+		return errors.New("-u cannot be combined with -S, -i, -z, -e, or --quit-delay")
 	}
 	if opts.exec != "" && !opts.listen {
 		return errors.New("-e is available only with -l")
@@ -262,11 +278,15 @@ func runListener(ctx context.Context, opts *options, args []string) error {
 			}
 		}()
 	}
-	node.Host.SetStreamHandler(p2pnode.ProtocolForService(service), func(stream network.Stream) {
+	applicationProtocol := p2pnode.ProtocolForService(service)
+	if opts.udp {
+		applicationProtocol = p2pnode.DatagramProtocolForService(service)
+	}
+	node.Host.SetStreamHandler(applicationProtocol, func(stream network.Stream) {
 		handleStream(stream, stream.Conn().RemotePeer().String())
 	})
 	var nativeListener *nativewebrtc.Listener
-	if !opts.noWebRTC && !opts.tor {
+	if !opts.udp && !opts.noWebRTC && !opts.tor {
 		nativeListener, err = nativewebrtc.StartListener(
 			ctx, privateKey, service, token, nil, nil,
 			func(stream *nativewebrtc.Stream, remote string) {
@@ -345,10 +365,16 @@ func runClient(ctx context.Context, opts *options, args []string) error {
 	openStream := func(openCtx context.Context) (session.Stream, error) {
 		dialCtx, cancel := context.WithTimeout(openCtx, timeout)
 		defer cancel()
-		stream, openErr := openAnyStream(
-			dialCtx, node, target, targetID, service, opts.relays, token,
-			!opts.noWebRTC && !opts.tor,
-		)
+		var stream session.Stream
+		var openErr error
+		if opts.udp {
+			stream, openErr = node.OpenDatagramStream(dialCtx, target, service, opts.relays, token)
+		} else {
+			stream, openErr = openAnyStream(
+				dialCtx, node, target, targetID, service, opts.relays, token,
+				!opts.noWebRTC && !opts.tor,
+			)
+		}
 		if openErr != nil {
 			return nil, openErr
 		}
@@ -364,6 +390,25 @@ func runClient(ctx context.Context, opts *options, args []string) error {
 		printNodeInfo(opts, node, "client")
 	}
 	if opts.port != 0 {
+		if opts.udp {
+			listener, err := session.StartLocalUDPForward(
+				ctx,
+				opts.bind,
+				opts.port,
+				time.Duration(opts.udpIdleTimeout)*time.Second,
+				openStream,
+				func(value error) {
+					diagnostic(opts, "UDP forwarding session: %v", value)
+				},
+			)
+			if err != nil {
+				return err
+			}
+			defer listener.Close()
+			diagnostic(opts, "local UDP %s -> %s:%d", listener.LocalAddr(), target, service)
+			<-ctx.Done()
+			return nil
+		}
 		listener, err := session.StartLocalForward(ctx, opts.bind, opts.port, openStream, func(value error) {
 			diagnostic(opts, "TCP forwarding session: %v", value)
 		})
@@ -468,6 +513,19 @@ func deadlineOr(ctx context.Context, fallback time.Time) time.Time {
 func runServerSession(ctx context.Context, stream session.Stream, opts *options) error {
 	timeout := time.Duration(opts.timeout) * time.Second
 	switch {
+	case opts.udp:
+		host := opts.destination
+		if host == "" {
+			host = "127.0.0.1"
+		}
+		return session.UDPForward(
+			ctx,
+			stream,
+			host,
+			opts.port,
+			timeout,
+			time.Duration(opts.udpIdleTimeout)*time.Second,
+		)
 	case opts.interactive:
 		return session.PTYServer(ctx, stream, opts.verbose)
 	case opts.socks:

@@ -21,7 +21,7 @@ func TestInvalidOptionsReturnFailure(t *testing.T) {
 	if code := Run([]string{"-u"}, strings.NewReader(""), &stdout, &stderr); code != 1 {
 		t.Fatalf("exit code = %d, want 1", code)
 	}
-	if !strings.Contains(stderr.String(), "not supported") {
+	if !strings.Contains(stderr.String(), "requires -p/--port") {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
 }

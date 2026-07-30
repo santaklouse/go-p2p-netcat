@@ -36,8 +36,9 @@ import (
 )
 
 const (
-	ProtocolPrefix = "/p2p-netcat/1.0.0"
-	DefaultService = uint16(31337)
+	ProtocolPrefix         = "/p2p-netcat/1.0.0"
+	DatagramProtocolPrefix = "/p2p-netcat/udp/1.0.0"
+	DefaultService         = uint16(31337)
 )
 
 type Config struct {
@@ -75,6 +76,10 @@ type Node struct {
 
 func ProtocolForService(service uint16) protocol.ID {
 	return protocol.ID(fmt.Sprintf("%s/%d", ProtocolPrefix, service))
+}
+
+func DatagramProtocolForService(service uint16) protocol.ID {
+	return protocol.ID(fmt.Sprintf("%s/%d", DatagramProtocolPrefix, service))
 }
 
 func New(parent context.Context, cfg Config) (*Node, error) {
@@ -346,6 +351,14 @@ func (n *Node) Addresses() []string {
 }
 
 func (n *Node) OpenStream(ctx context.Context, target string, service uint16, relays []string, token *pairing.Token) (network.Stream, error) {
+	return n.openStream(ctx, target, ProtocolForService(service), relays, token)
+}
+
+func (n *Node) OpenDatagramStream(ctx context.Context, target string, service uint16, relays []string, token *pairing.Token) (network.Stream, error) {
+	return n.openStream(ctx, target, DatagramProtocolForService(service), relays, token)
+}
+
+func (n *Node) openStream(ctx context.Context, target string, protocolID protocol.ID, relays []string, token *pairing.Token) (network.Stream, error) {
 	targetID, err := n.resolve(ctx, target, relays, token)
 	if err != nil {
 		return nil, err
@@ -353,7 +366,7 @@ func (n *Node) OpenStream(ctx context.Context, target string, service uint16, re
 	return n.Host.NewStream(
 		network.WithAllowLimitedConn(ctx, "p2p-netcat application stream"),
 		targetID,
-		ProtocolForService(service),
+		protocolID,
 	)
 }
 
