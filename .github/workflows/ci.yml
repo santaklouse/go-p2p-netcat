@@ -3,13 +3,59 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
+  quality:
+    name: Go and workflow quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Verify Go modules
+        run: go mod verify
+      - name: Check Go formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          unformatted="$(git ls-files -z '*.go' | xargs -0 gofmt -l)"
+          if [[ -n "$unformatted" ]]; then
+            printf 'The following Go files are not formatted:\n%s\n' "$unformatted" >&2
+            exit 1
+          fi
+      - name: Run go vet
+        run: go vet ./...
+      - name: Validate GitHub Actions workflows
+        shell: bash
+        run: |
+          GOBIN="${RUNNER_TEMP}/actionlint-bin" \
+            go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          "${RUNNER_TEMP}/actionlint-bin/actionlint"
+      - name: Check shell syntax
+        shell: bash
+        run: bash -n deploy/deploy.sh deploy/deploy_test.sh scripts/sync-wiki.sh scripts/sync-wiki_test.sh
+
   test:
+    name: Go tests (${{ matrix.os }})
+    timeout-minutes: 20
     strategy:
+      fail-fast: false
       matrix:
         os:
           - ubuntu-latest
@@ -17,40 +63,85 @@ jobs:
           - windows-latest
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           cache: true
           cache-dependency-path: go.sum
-      - run: go test ./...
-      - run: go vet ./...
-      - run: go build ./cmd/p2p-nc ./cmd/pnc
+      - name: Run Go tests
+        run: go test -count=1 -timeout=15m ./...
+      - name: Build commands
+        run: go build -trimpath ./cmd/p2p-nc ./cmd/pnc
       - name: Test deploy script
         if: runner.os != 'Windows'
         shell: bash
         run: bash deploy/deploy_test.sh
+      - name: Test Wiki generation
+        if: runner.os != 'Windows'
+        shell: bash
+        run: bash scripts/sync-wiki_test.sh
+
+  race:
+    name: Go race detector
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Run race detector
+        run: go test -race -count=1 -timeout=25m ./...
 
   web:
+    name: Browser packages
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6.5.0
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          node-version: 22
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22.12.0
           cache: npm
           cache-dependency-path: |
             packages/core/package-lock.json
             web/package-lock.json
-      - run: npm ci
+      - name: Install core dependencies
+        run: npm ci
         working-directory: packages/core
-      - run: npm test
+      - name: Test core package
+        run: npm test
         working-directory: packages/core
-      - run: npm run lint
+      - name: Lint core package
+        run: npm run lint
         working-directory: packages/core
-      - run: npm ci
+      - name: Validate core package contents
+        run: npm pack --dry-run
+        working-directory: packages/core
+      - name: Install web dependencies
+        run: npm ci
         working-directory: web
-      - run: npm test
+      - name: Test web package
+        run: npm test
         working-directory: web
-      - run: npm run lint
+      - name: Lint web package
+        run: npm run lint
+        working-directory: web
+      - name: Validate web package contents
+        run: npm pack --dry-run
         working-directory: web

@@ -6,32 +6,77 @@ on:
       - main
     tags:
       - "v*.*.*"
+  workflow_dispatch:
 
 concurrency:
-  group: release-main-${{ github.sha }}
-  cancel-in-progress: false
+  group: release-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 permissions:
   contents: read
 
 jobs:
-  verify:
-    name: Verify
+  verify-go:
+    name: Verify Go release
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           cache: true
           cache-dependency-path: go.sum
-      - run: go test ./...
-      - run: go vet ./...
+      - name: Verify Go modules
+        run: go mod verify
+      - name: Run Go tests
+        run: go test -count=1 -timeout=15m ./...
+      - name: Run go vet
+        run: go vet ./...
+
+  verify-web:
+    name: Verify browser release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22.12.0
+          cache: npm
+          cache-dependency-path: |
+            packages/core/package-lock.json
+            web/package-lock.json
+      - name: Install and test core package
+        working-directory: packages/core
+        run: |
+          npm ci
+          npm test
+          npm run lint
+          npm pack --dry-run
+      - name: Install and test web package
+        working-directory: web
+        run: |
+          npm ci
+          npm test
+          npm run lint
+          npm pack --dry-run
 
   build:
     name: Build ${{ matrix.target }}
-    needs: verify
+    needs:
+      - verify-go
+      - verify-web
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -80,8 +125,12 @@ jobs:
             cgo: "1"
             cc: armv7a-linux-androideabi24-clang
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           cache: true
@@ -138,19 +187,23 @@ jobs:
             -o "dist/$package/$alias_binary" \
             ./cmd/pnc
           cp LICENSE README.md README.RU.md "dist/$package/"
+          go version -m "dist/$package/$binary"
+          go version -m "dist/$package/$alias_binary"
 
           if [[ "$ARCHIVE" == "zip" ]]; then
             (
               cd dist
               zip -9 -r "$package.zip" "$package"
             )
+            unzip -t "dist/$package.zip"
           else
             tar -C dist -czf "dist/$package.tar.gz" "$package"
+            tar -tzf "dist/$package.tar.gz" >/dev/null
           fi
 
           rm -rf "dist/$package"
       - name: Upload build
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-${{ matrix.target }}
           path: dist/*
@@ -161,21 +214,37 @@ jobs:
     name: Publish GitHub Release
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
       actions: read
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/download-artifact@v8
+      - name: Check out release metadata
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Download release builds
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           pattern: release-*
           path: dist
           merge-multiple: true
+      - name: Add installer
+        shell: bash
+        run: install -m 0755 deploy/deploy.sh dist/deploy.sh
       - name: Create checksums
         shell: bash
         run: |
           set -euo pipefail
           cd dist
-          sha256sum p2p-nc-* > SHA256SUMS
+          sha256sum p2p-nc-* deploy.sh > SHA256SUMS
+          sha256sum --check SHA256SUMS
+      - name: Attest release artifacts
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-path: dist/*
       - name: Publish release
         shell: bash
         env:

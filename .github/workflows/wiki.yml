@@ -1,0 +1,68 @@
+name: Sync GitHub Wiki
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/wiki.yml
+      - README.md
+      - README.RU.md
+      - docs/**
+      - scripts/sync-wiki.sh
+      - scripts/sync-wiki_test.sh
+  workflow_dispatch:
+
+concurrency:
+  group: github-wiki
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Publish documentation
+    if: github.repository == 'santaklouse/go-p2p-netcat'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Test Wiki generation
+        shell: bash
+        run: bash scripts/sync-wiki_test.sh
+      - name: Clone Wiki
+        shell: bash
+        run: git clone "https://github.com/${GITHUB_REPOSITORY}.wiki.git" "${RUNNER_TEMP}/go-p2p-netcat.wiki"
+      - name: Synchronize documentation
+        shell: bash
+        run: bash scripts/sync-wiki.sh "${RUNNER_TEMP}/go-p2p-netcat.wiki"
+      - name: Publish changes
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          wiki_dir="${RUNNER_TEMP}/go-p2p-netcat.wiki"
+          git -C "$wiki_dir" config user.name "github-actions[bot]"
+          git -C "$wiki_dir" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$wiki_dir" add --all
+
+          if git -C "$wiki_dir" diff --cached --quiet; then
+            printf 'GitHub Wiki is already up to date\n'
+            exit 0
+          fi
+
+          git -C "$wiki_dir" commit -m "docs: sync Wiki from ${GITHUB_SHA::12}"
+          auth_header="$(
+            printf 'x-access-token:%s' "$GITHUB_TOKEN" |
+              base64 |
+              tr -d '\n'
+          )"
+          git -C "$wiki_dir" \
+            -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth_header}" \
+            push origin HEAD
