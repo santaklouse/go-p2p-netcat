@@ -1,0 +1,57 @@
+{
+  "name": "p2p-netcat-core",
+  "version": "0.5.0",
+  "description": "Browser-safe protocol, addressing and dial planning primitives for p2p-netcat",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    }
+  },
+  "files": [
+    "src",
+    "README.md",
+    "README.RU.md"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "lint": "node --check ./src/index.js && node --check ./src/native-webrtc.js && node --check ./src/signaling.js && node --check ./src/native-endpoint.js && node --check ./src/pairing.js && node --check ./src/route-record.js && node --check ./src/session-auth.js && node --check ./src/authenticated-stream.js",
+    "prepublishOnly": "npm test && npm run lint"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/santaklouse/go-p2p-netcat.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/santaklouse/go-p2p-netcat/issues"
+  },
+  "homepage": "https://github.com/santaklouse/go-p2p-netcat/tree/main/packages/core",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "keywords": [
+    "p2p",
+    "libp2p",
+    "netcat",
+    "peer-id",
+    "ipfs",
+    "circuit-relay"
+  ],
+  "author": "santaklouse",
+  "license": "MIT",
+  "dependencies": {
+    "@libp2p/crypto": "^5.1.13",
+    "@libp2p/peer-id": "^6.0.4",
+    "@noble/secp256k1": "^3.1.0",
+    "@multiformats/multiaddr": "^13.0.1",
+    "cborg": "^5.1.7",
+    "multiformats": "^14.0.4"
+  }
+}

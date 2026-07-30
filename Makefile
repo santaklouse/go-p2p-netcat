@@ -1,10 +1,12 @@
 GO ?= go
 BINARY ?= p2p-nc
+ALIAS ?= pnc
 
 .PHONY: build test vet fmt check clean
 
 build:
 	GOTOOLCHAIN=auto $(GO) build -o $(BINARY) ./cmd/p2p-nc
+	GOTOOLCHAIN=auto $(GO) build -o $(ALIAS) ./cmd/pnc
 
 test:
 	GOTOOLCHAIN=auto $(GO) test ./...
@@ -18,4 +20,4 @@ fmt:
 check: fmt vet test
 
 clean:
-	$(RM) $(BINARY)
+	$(RM) $(BINARY) $(ALIAS)

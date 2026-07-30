@@ -1,0 +1,6 @@
+{
+  "delegatedRouting": [
+    "https://delegated-ipfs.dev/routing/v1"
+  ],
+  "relays": []
+}

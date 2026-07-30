@@ -1,0 +1,88 @@
+{
+  "name": "p2p-netcat-web",
+  "version": "0.6.0",
+  "description": "Prebuilt static PWA client for p2p-netcat",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "README.RU.md",
+    "LICENSE"
+  ],
+  "exports": {
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "npm run build && node --test tests/static-site.test.mjs",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm test && npm run lint"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/santaklouse/go-p2p-netcat.git",
+    "directory": "web"
+  },
+  "bugs": {
+    "url": "https://github.com/santaklouse/go-p2p-netcat/issues"
+  },
+  "homepage": "https://santaklouse.github.io/go-p2p-netcat/",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "keywords": [
+    "p2p",
+    "libp2p",
+    "netcat",
+    "peer-id",
+    "ipfs",
+    "pwa",
+    "webrtc",
+    "terminal"
+  ],
+  "author": "santaklouse",
+  "license": "MIT",
+  "overrides": {
+    "brace-expansion": "5.0.8",
+    "filelist": "2.0.2",
+    "jake": "12.10.1",
+    "serialize-javascript": "7.0.7"
+  },
+  "devDependencies": {
+    "@chainsafe/libp2p-noise": "^17.0.0",
+    "@chainsafe/libp2p-yamux": "^8.0.1",
+    "@libp2p/bootstrap": "^12.0.27",
+    "@libp2p/circuit-relay-v2": "^4.2.9",
+    "@libp2p/crypto": "^5.1.21",
+    "@libp2p/gossipsub": "^16.0.5",
+    "@libp2p/identify": "^4.1.10",
+    "@libp2p/kad-dht": "^16.4.0",
+    "@libp2p/peer-id": "^6.0.12",
+    "@libp2p/ping": "^3.1.9",
+    "@libp2p/pubsub-peer-discovery": "^12.0.0",
+    "@libp2p/websockets": "^10.1.17",
+    "@libp2p/webtransport": "^6.0.32",
+    "@multiformats/multiaddr": "^13.0.1",
+    "@types/node": "^22.20.1",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "5.2.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "libp2p": "^3.3.6",
+    "p2p-netcat-core": "file:../packages/core",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "typescript": "5.9.3",
+    "vite": "^7.3.6",
+    "vite-plugin-pwa": "1.2.0",
+    "workbox-window": "7.4.0"
+  }
+}

@@ -15,14 +15,16 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/santaklouse/go-p2p-netcat/internal/identity"
+	"github.com/santaklouse/go-p2p-netcat/nativewebrtc"
 	p2pnode "github.com/santaklouse/go-p2p-netcat/p2p"
 	"github.com/santaklouse/go-p2p-netcat/protocol/admission"
 	"github.com/santaklouse/go-p2p-netcat/protocol/pairing"
+	relayserver "github.com/santaklouse/go-p2p-netcat/relay"
 	"github.com/santaklouse/go-p2p-netcat/session"
 	"github.com/spf13/cobra"
 )
 
-var Version = "0.1.0"
+var Version = "0.2.0"
 
 type options struct {
 	listen           bool
@@ -114,7 +116,7 @@ func addNodeFlags(command *cobra.Command, opts *options) {
 	flags.BoolVar(&opts.noMDNS, "no-mdns", false, "отключить mDNS")
 	flags.BoolVar(&opts.noPubsub, "no-pubsub", false, "отключить PubSub discovery")
 	flags.BoolVar(&opts.noQUIC, "no-quic", false, "отключить QUIC")
-	flags.BoolVar(&opts.noWebRTC, "no-webrtc", false, "отключить WebRTC-direct")
+	flags.BoolVar(&opts.noWebRTC, "no-webrtc", false, "отключить WebRTC-direct и native Nostr/WebTorrent WebRTC")
 	flags.StringVar(&opts.pairingToken, "pairing-token", "", "приватный pairing token pnc1_...")
 	flags.StringVar(&opts.pairingTokenFile, "pairing-token-file", "", "прочитать pairing token из файла")
 	flags.StringVar(&opts.bind, "bind", "127.0.0.1", "локальный адрес для -p forwarding")
@@ -129,7 +131,7 @@ func validateOptions(command *cobra.Command, opts *options, args []string) error
 	if opts.quitDelay < 0 || opts.transportPort < 0 || opts.transportPort > 65535 {
 		return errors.New("порты и задержки не могут быть отрицательными")
 	}
-	if opts.port < 0 || opts.port > 65535 {
+	if opts.port < 0 || opts.port > 65535 || (command.Flags().Changed("port") && opts.port == 0) {
 		return errors.New("-p/--port должен быть от 1 до 65535")
 	}
 	if opts.ipv4 && opts.ipv6 {
@@ -170,7 +172,6 @@ func validateOptions(command *cobra.Command, opts *options, args []string) error
 	if opts.listen && len(args) > 1 {
 		return errors.New("в режиме -l укажите только логический порт: p2p-nc -l 8080")
 	}
-	_ = command
 	return nil
 }
 
@@ -208,7 +209,7 @@ func runListener(ctx context.Context, opts *options, args []string) error {
 			opts.relays = relayStrings(token)
 		}
 	}
-	node, err := p2pnode.New(ctx, nodeConfig(opts, privateKey, true, true, false))
+	node, err := p2pnode.New(ctx, nodeConfig(opts, privateKey, true, true, false, token != nil))
 	if err != nil {
 		return err
 	}
@@ -219,7 +220,7 @@ func runListener(ctx context.Context, opts *options, args []string) error {
 	result := make(chan error, 1)
 	var acceptedMu sync.Mutex
 	accepted := false
-	handler := func(stream network.Stream) {
+	handleStream := func(stream session.Stream, remote string) {
 		acceptedMu.Lock()
 		if accepted && !persistent && token == nil {
 			acceptedMu.Unlock()
@@ -247,7 +248,7 @@ func runListener(ctx context.Context, opts *options, args []string) error {
 				accepted = true
 				acceptedMu.Unlock()
 			}
-			diagnostic(opts, "peer %s подключен к логическому порту %d", stream.Conn().RemotePeer(), service)
+			diagnostic(opts, "peer %s подключен к логическому порту %d", remote, service)
 			sessionErr := runServerSession(ctx, stream, opts)
 			if persistent {
 				if sessionErr != nil {
@@ -261,7 +262,24 @@ func runListener(ctx context.Context, opts *options, args []string) error {
 			}
 		}()
 	}
-	node.Host.SetStreamHandler(p2pnode.ProtocolForService(service), handler)
+	node.Host.SetStreamHandler(p2pnode.ProtocolForService(service), func(stream network.Stream) {
+		handleStream(stream, stream.Conn().RemotePeer().String())
+	})
+	var nativeListener *nativewebrtc.Listener
+	if !opts.noWebRTC && !opts.tor {
+		nativeListener, err = nativewebrtc.StartListener(
+			ctx, privateKey, service, token, nil, nil,
+			func(stream *nativewebrtc.Stream, remote string) {
+				handleStream(stream, "WebRTC/"+remote)
+			},
+		)
+		if err != nil {
+			diagnostic(opts, "native WebRTC signaling не запущен: %v", err)
+		} else {
+			defer nativeListener.Close()
+			diagnostic(opts, "native WebRTC Nostr/WebTorrent signaling запущен")
+		}
+	}
 	printNodeInfo(opts, node, fmt.Sprintf("слушатель:%d", service))
 	diagnostic(opts, "постоянный ключ: %s", identityPath)
 	if token != nil {
@@ -318,7 +336,7 @@ func runClient(ctx context.Context, opts *options, args []string) error {
 	if err != nil {
 		return err
 	}
-	node, err := p2pnode.New(ctx, nodeConfig(opts, privateKey, true, false, false))
+	node, err := p2pnode.New(ctx, nodeConfig(opts, privateKey, true, false, false, token != nil))
 	if err != nil {
 		return err
 	}
@@ -327,7 +345,10 @@ func runClient(ctx context.Context, opts *options, args []string) error {
 	openStream := func(openCtx context.Context) (session.Stream, error) {
 		dialCtx, cancel := context.WithTimeout(openCtx, timeout)
 		defer cancel()
-		stream, openErr := node.OpenStream(dialCtx, target, service, opts.relays, token)
+		stream, openErr := openAnyStream(
+			dialCtx, node, target, targetID, service, opts.relays, token,
+			!opts.noWebRTC && !opts.tor,
+		)
 		if openErr != nil {
 			return nil, openErr
 		}
@@ -375,6 +396,75 @@ func runClient(ctx context.Context, opts *options, args []string) error {
 	return session.Bridge(ctx, stream, os.Stdin, os.Stdout, time.Duration(opts.quitDelay)*time.Second, inactivity)
 }
 
+type streamAttempt struct {
+	stream session.Stream
+	err    error
+}
+
+func openAnyStream(
+	ctx context.Context,
+	node *p2pnode.Node,
+	target string,
+	targetID peer.ID,
+	service uint16,
+	relays []string,
+	token *pairing.Token,
+	enableNative bool,
+) (session.Stream, error) {
+	if !enableNative {
+		return node.OpenStream(ctx, target, service, relays, token)
+	}
+	raceCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	attempts := make(chan streamAttempt, 2)
+	go func() {
+		stream, err := node.OpenStream(raceCtx, target, service, relays, token)
+		select {
+		case attempts <- streamAttempt{stream: stream, err: err}:
+		case <-raceCtx.Done():
+			if stream != nil {
+				_ = stream.Reset()
+			}
+		}
+	}()
+	go func() {
+		connection, err := nativewebrtc.Connect(
+			raceCtx, targetID, service, token, time.Until(deadlineOr(raceCtx, time.Now().Add(30*time.Second))),
+			nil, nil,
+		)
+		if err != nil {
+			attempts <- streamAttempt{err: err}
+			return
+		}
+		select {
+		case attempts <- streamAttempt{stream: connection.Stream}:
+		case <-raceCtx.Done():
+			_ = connection.Close()
+		}
+	}()
+	var failures []error
+	for range 2 {
+		select {
+		case attempt := <-attempts:
+			if attempt.err == nil && attempt.stream != nil {
+				cancel()
+				return attempt.stream, nil
+			}
+			failures = append(failures, attempt.err)
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	return nil, errors.Join(failures...)
+}
+
+func deadlineOr(ctx context.Context, fallback time.Time) time.Time {
+	if deadline, ok := ctx.Deadline(); ok {
+		return deadline
+	}
+	return fallback
+}
+
 func runServerSession(ctx context.Context, stream session.Stream, opts *options) error {
 	timeout := time.Duration(opts.timeout) * time.Second
 	switch {
@@ -391,7 +481,18 @@ func runServerSession(ctx context.Context, stream session.Stream, opts *options)
 	case opts.exec != "":
 		return session.Exec(ctx, stream, opts.exec, opts.verbose)
 	default:
-		return session.Bridge(ctx, stream, os.Stdin, os.Stdout, time.Duration(opts.quitDelay)*time.Second, 0)
+		inactivity := time.Duration(0)
+		if opts.timeoutExplicit {
+			inactivity = timeout
+		}
+		return session.Bridge(
+			ctx,
+			stream,
+			os.Stdin,
+			os.Stdout,
+			time.Duration(opts.quitDelay)*time.Second,
+			inactivity,
+		)
 	}
 }
 
@@ -502,8 +603,36 @@ func minDuration(left, right time.Duration) time.Duration {
 }
 
 func QuietRequested(args []string) bool {
+	return booleanShortOptionRequested(args, 'q', "quiet")
+}
+
+func TorRequested(args []string) bool {
+	return booleanShortOptionRequested(args, 'T', "tor")
+}
+
+func booleanShortOptionRequested(args []string, shorthand byte, longhand string) bool {
+	skipNext := false
 	for _, value := range args {
-		if value == "-q" || value == "--quiet" || (strings.HasPrefix(value, "-") && !strings.HasPrefix(value, "--") && strings.Contains(value, "q")) {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		if value == "--"+longhand || value == "-"+string(shorthand) {
+			return true
+		}
+		switch value {
+		case "-I", "-w", "-d", "-p", "-e", "--identity", "--timeout",
+			"--destination", "--port", "--exec":
+			skipNext = true
+			continue
+		}
+		if len(value) < 3 || !strings.HasPrefix(value, "-") || strings.HasPrefix(value, "--") {
+			continue
+		}
+		if strings.ContainsRune("Iwdpe", rune(value[1])) {
+			continue
+		}
+		if strings.ContainsRune(value[1:], rune(shorthand)) {
 			return true
 		}
 	}
@@ -544,7 +673,7 @@ func newTokenCommand() *cobra.Command {
 		Use:   "token [логический-порт]",
 		Short: "создать приватный pairing token",
 		Args:  cobra.MaximumNArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(command *cobra.Command, args []string) error {
 			if path == "" {
 				path = identity.DefaultPath()
 			}
@@ -572,7 +701,7 @@ func newTokenCommand() *cobra.Command {
 				addresses = append(addresses, address)
 			}
 			var expires *uint64
-			if expiresIn < 0 {
+			if expiresIn < 0 || (command.Flags().Changed("expires-in") && expiresIn == 0) {
 				return errors.New("--expires-in должен быть больше нуля")
 			}
 			if expiresIn > 0 {
@@ -628,28 +757,29 @@ func newRelayCommand() *cobra.Command {
 			if path == "" {
 				path = identity.DefaultPath() + ".relay"
 			}
-			key, err := identity.LoadOrCreate(path)
-			if err != nil {
-				return err
-			}
 			ipVersion := 0
 			if opts.ipv4 {
 				ipVersion = 4
 			} else if opts.ipv6 {
 				ipVersion = 6
 			}
-			node, err := p2pnode.New(command.Context(), p2pnode.Config{
-				PrivateKey: key, TransportPort: opts.localPort, WebsocketPort: opts.websocketPort,
-				IPVersion: ipVersion, Announce: opts.announce, EnableMDNS: !opts.noMDNS,
-				EnableQUIC: !opts.noQUIC, EnableWebRTC: false, Listen: true, RelayServer: true,
-				Verbose: opts.verbose,
+			relay, err := relayserver.Start(command.Context(), relayserver.Options{
+				IdentityPath:  path,
+				LocalPort:     opts.localPort,
+				WebsocketPort: opts.websocketPort,
+				IPVersion:     ipVersion,
+				Announce:      opts.announce,
+				NoMDNS:        opts.noMDNS,
+				NoPubSub:      opts.noPubsub,
+				NoQUIC:        opts.noQUIC,
+				Verbose:       opts.verbose,
 			})
 			if err != nil {
 				return err
 			}
-			defer node.Close()
+			defer relay.Stop()
 			common := &options{json: opts.json, verbose: opts.verbose}
-			printNodeInfo(common, node, "relay")
+			printNodeInfo(common, relay.Node, "relay")
 			diagnostic(common, "relay готов; постоянный ключ: %s", path)
 			<-command.Context().Done()
 			return nil

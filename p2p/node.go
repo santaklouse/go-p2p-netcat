@@ -14,6 +14,7 @@ import (
 	"github.com/ipfs/go-cid"
 	libp2p "github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -21,7 +22,11 @@ import (
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
+	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
+	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	circuitclient "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/client"
+	circuitproto "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/proto"
+	circuitrelay "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 	quictransport "github.com/libp2p/go-libp2p/p2p/transport/quic"
 	tcptransport "github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	webrtctransport "github.com/libp2p/go-libp2p/p2p/transport/webrtc"
@@ -36,30 +41,36 @@ const (
 )
 
 type Config struct {
-	PrivateKey    crypto.PrivKey
-	TransportPort int
-	WebsocketPort int
-	IPVersion     int
-	Announce      []string
-	Relays        []string
-	Bootstrap     []string
-	EnableDHT     bool
-	EnableMDNS    bool
-	EnableQUIC    bool
-	EnableWebRTC  bool
-	Listen        bool
-	DHTServer     bool
-	RelayServer   bool
-	Verbose       bool
+	PrivateKey     crypto.PrivKey
+	TransportPort  int
+	WebsocketPort  int
+	IPVersion      int
+	Announce       []string
+	Relays         []string
+	Bootstrap      []string
+	EnableDHT      bool
+	EnableMDNS     bool
+	EnablePubSub   bool
+	PubSubDiscover bool
+	PubSubInterval time.Duration
+	EnableQUIC     bool
+	EnableWebRTC   bool
+	Listen         bool
+	DHTServer      bool
+	RelayServer    bool
+	Verbose        bool
 }
 
 type Node struct {
-	Host    host.Host
-	DHT     *dht.IpfsDHT
-	mdns    mdns.Service
-	cancel  context.CancelFunc
-	verbose bool
-	once    sync.Once
+	Host               host.Host
+	DHT                *dht.IpfsDHT
+	PubSub             *pubsub.PubSub
+	mdns               mdns.Service
+	pubsubTopic        *pubsub.Topic
+	pubsubSubscription *pubsub.Subscription
+	cancel             context.CancelFunc
+	verbose            bool
+	once               sync.Once
 }
 
 func ProtocolForService(service uint16) protocol.ID {
@@ -76,9 +87,10 @@ func New(parent context.Context, cfg Config) (*Node, error) {
 	ctx, cancel := context.WithCancel(parent)
 	options := []libp2p.Option{
 		libp2p.Identity(cfg.PrivateKey),
-		libp2p.UserAgent("go-p2p-netcat/0.1.0"),
+		libp2p.UserAgent("go-p2p-netcat/0.2.0"),
 		libp2p.ProtocolVersion("p2p-netcat/1.0.0"),
 		libp2p.NoTransports,
+		libp2p.SwarmOpts(swarm.WithDialRanker(PreferDialRanker)),
 		libp2p.Transport(tcptransport.NewTCPTransport),
 		libp2p.Transport(websockettransport.New),
 	}
@@ -120,13 +132,30 @@ func New(parent context.Context, cfg Config) (*Node, error) {
 		}))
 	}
 
+	var relaySourceHost host.Host
 	if cfg.RelayServer {
-		options = append(options, libp2p.EnableRelayService(), libp2p.ForceReachabilityPublic())
+		resources := circuitrelay.DefaultResources()
+		resources.Limit = &circuitrelay.RelayLimit{
+			Duration: 2 * time.Hour,
+			Data:     128 * 1024 * 1024,
+		}
+		resources.MaxReservations = 128
+		options = append(options,
+			libp2p.EnableRelayService(circuitrelay.WithResources(resources)),
+			libp2p.ForceReachabilityPublic(),
+		)
 	} else if len(staticRelays) > 0 {
 		options = append(options,
 			libp2p.EnableAutoRelayWithStaticRelays(staticRelays),
 			libp2p.ForceReachabilityPrivate(),
 		)
+	} else if cfg.Listen {
+		options = append(options, libp2p.EnableAutoRelayWithPeerSource(
+			connectedRelayCandidates(&relaySourceHost),
+			autorelay.WithMinCandidates(1),
+			autorelay.WithNumRelays(1),
+			autorelay.WithBootDelay(15*time.Second),
+		))
 	}
 
 	h, err := libp2p.New(options...)
@@ -134,6 +163,7 @@ func New(parent context.Context, cfg Config) (*Node, error) {
 		cancel()
 		return nil, fmt.Errorf("создать libp2p host: %w", err)
 	}
+	relaySourceHost = h
 	node := &Node{Host: h, cancel: cancel, verbose: cfg.Verbose}
 	fail := func(cause error) (*Node, error) {
 		_ = node.Close()
@@ -191,7 +221,61 @@ func New(parent context.Context, cfg Config) (*Node, error) {
 			return fail(fmt.Errorf("запустить mDNS: %w", err))
 		}
 	}
+	if cfg.EnablePubSub {
+		if err := node.startPubSub(
+			ctx,
+			staticRelays,
+			cfg.PubSubDiscover,
+			cfg.RelayServer,
+			cfg.PubSubInterval,
+		); err != nil {
+			return fail(fmt.Errorf("запустить GossipSub discovery: %w", err))
+		}
+	}
 	return node, nil
+}
+
+// PreferDialRanker preserves the JavaScript client's transport preference while
+// still racing addresses of the same class in parallel.
+func PreferDialRanker(addresses []ma.Multiaddr) []network.AddrDelay {
+	sorted := append([]ma.Multiaddr(nil), addresses...)
+	sort.SliceStable(sorted, func(left, right int) bool {
+		return dialAddressRank(sorted[left]) < dialAddressRank(sorted[right])
+	})
+	result := make([]network.AddrDelay, 0, len(sorted))
+	lastRank := -1
+	delay := time.Duration(0)
+	for _, address := range sorted {
+		rank := dialAddressRank(address)
+		if lastRank >= 0 && rank != lastRank {
+			delay += 50 * time.Millisecond
+		}
+		result = append(result, network.AddrDelay{Addr: address, Delay: delay})
+		lastRank = rank
+	}
+	return result
+}
+
+func dialAddressRank(address ma.Multiaddr) int {
+	value := address.String()
+	switch {
+	case strings.Contains(value, "/webrtc-direct"):
+		return 0
+	case strings.Contains(value, "/quic-v1"):
+		return 1
+	case strings.Contains(value, "/webtransport"):
+		return 2
+	case strings.Contains(value, "/wss"):
+		return 3
+	case strings.Contains(value, "/ws"):
+		return 4
+	case strings.Contains(value, "/tcp/") && !strings.Contains(value, "/p2p-circuit"):
+		return 5
+	case strings.Contains(value, "/p2p-circuit"):
+		return 6
+	default:
+		return 7
+	}
 }
 
 func (n *Node) Close() error {
@@ -201,12 +285,51 @@ func (n *Node) Close() error {
 		if n.mdns != nil {
 			_ = n.mdns.Close()
 		}
+		if n.pubsubSubscription != nil {
+			n.pubsubSubscription.Cancel()
+		}
+		if n.pubsubTopic != nil {
+			_ = n.pubsubTopic.Close()
+		}
 		if n.DHT != nil {
 			_ = n.DHT.Close()
 		}
 		result = n.Host.Close()
 	})
 	return result
+}
+
+func connectedRelayCandidates(hostPointer *host.Host) autorelay.PeerSource {
+	return func(ctx context.Context, limit int) <-chan peer.AddrInfo {
+		output := make(chan peer.AddrInfo)
+		go func() {
+			defer close(output)
+			if hostPointer == nil || *hostPointer == nil || limit <= 0 {
+				return
+			}
+			h := *hostPointer
+			for _, peerID := range h.Peerstore().PeersWithAddrs() {
+				if peerID == h.ID() {
+					continue
+				}
+				supported, err := h.Peerstore().SupportsProtocols(peerID, circuitproto.ProtoIDv2Hop)
+				if err != nil || len(supported) == 0 {
+					continue
+				}
+				info := peer.AddrInfo{ID: peerID, Addrs: h.Peerstore().Addrs(peerID)}
+				select {
+				case output <- info:
+					limit--
+					if limit == 0 {
+						return
+					}
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+		return output
+	}
 }
 
 func (n *Node) Addresses() []string {

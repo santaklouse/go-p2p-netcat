@@ -1,0 +1,92 @@
+# go-p2p-netcat architecture
+
+[Русская версия](ARCHITECTURE.RU.md)
+
+This repository combines the canonical Go CLI/network implementation with the
+browser-safe TypeScript core and static PWA.
+
+## Compatibility boundary
+
+- identity: libp2p protobuf Ed25519 private/public keys and stable PeerId;
+- application protocol: `/p2p-netcat/1.0.0/<logical-port>`;
+- PTY frames: one-byte type plus big-endian 32-bit payload length;
+- pairing: deterministic CBOR `pnc1_` tokens, HKDF-SHA-256, AES-256-GCM,
+  rotating rendezvous, and the fixed mutual admission handshake;
+- native WebRTC: protocol v2, `p2p-netcat-v2` ordered data channel, historical
+  `p2p-netcat/trystero-auth/v1` signature domain, and identical control frames.
+
+## Go CLI route selection
+
+The Go host supports TCP, QUIC v1, WebSocket, libp2p WebRTC Direct, Noise/TLS,
+Yamux, Circuit Relay v2, mDNS, signed GossipSub discovery, and IPFS Amino DHT.
+PeerId is an identity, not a route: mDNS, GossipSub, DHT provider records,
+bootstrap peers, explicit multiaddrs, or a relay must provide an address.
+
+Dial order is native WebRTC Direct, QUIC, WebTransport, WSS, WS, direct TCP,
+Circuit Relay, then other addresses. The custom native WebRTC branch runs in
+parallel with libp2p and races Nostr and WebTorrent signaling. The first
+authenticated route wins.
+
+Pairing-token mode suppresses public discovery, derives private DHT/signaling
+rendezvous, encrypts signaling, and authenticates the stream before exposing
+application bytes.
+
+## Native WebRTC
+
+The listener signs a 32-byte challenge with its persistent libp2p identity.
+The client reconstructs the exact expected PeerId from the included public key
+and verifies the service-bound signature. Data and control frames implement
+EOF, abort, keepalive, acknowledgements, and a 256 KiB flow window.
+
+An unexpected disconnect starts a 120-second reconnect grace period. New
+offers reuse the signaling peer identity, attach the replacement Pion data
+channel to the existing logical stream, and exchange `resume`/`flow:1` so
+queued writes and PTY processes survive transient ICE failures.
+
+Nostr uses short-lived signed kind-25050 events scoped by a hashed topic.
+WebTorrent uses a 20-character tracker `peer_id`, bounded offers, and complete
+non-trickle SDP. Both reconnect their WebSockets with bounded backoff.
+
+## Browser PWA
+
+The React UI talks to a module Web Worker. The worker owns browser libp2p,
+IndexedDB route caching, GossipSub, Delegated Routing, DHT, and relay dialing.
+Native WebRTC runs beside that branch using the browser implementation in
+`packages/core`. A Service Worker only caches the static shell.
+
+An HTTPS browser accepts WebTransport, native WebRTC, or secure WebSocket
+routes; it cannot dial ordinary TCP, QUIC, or insecure WS.
+
+## Sessions
+
+Every accepted stream is connected to one of:
+
+- raw stdin/stdout;
+- shell command execution;
+- local or remote TCP forwarding;
+- SOCKS4/4a/5 CONNECT;
+- interactive PTY (Unix PTY or Windows ConPTY).
+
+`-w` limits discovery/connect time and, when explicitly supplied for raw mode,
+also acts as an inactivity timeout. `-k` keeps a listener open for additional
+sessions.
+
+## Relay
+
+Explicit relays are connected as permanent peers. Without an explicit relay,
+a listening private host can reserve a suitable connected Circuit Relay v2
+peer discovered through the mesh. Relay servers use 128 reservations with a
+two-hour/128-MiB default limit and GossipSub peer exchange.
+
+## Main source map
+
+| Path | Responsibility |
+|---|---|
+| `p2p/` | libp2p host, transports, discovery, DHT, relay reservations |
+| `nativewebrtc/` | Pion endpoint, signaling, authentication, reconnecting stream |
+| `protocol/` | pairing, admission, PTY, and signed route wire formats |
+| `session/` | raw, exec, forwarding, SOCKS, PTY, ConPTY |
+| `relay/` | public embeddable relay API |
+| `internal/cli/` | CLI validation and listener/client orchestration |
+| `packages/core/` | browser-safe protocol and native WebRTC library |
+| `web/` | static bilingual PWA |

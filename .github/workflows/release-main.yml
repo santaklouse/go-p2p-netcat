@@ -106,11 +106,13 @@ jobs:
           fi
           package="p2p-nc-${TARGET}"
           binary="p2p-nc"
+          alias_binary="pnc"
           build_mode=()
           linker_flags="-s -w -X github.com/santaklouse/go-p2p-netcat/internal/cli.Version=$version"
 
           if [[ "$GOOS" == "windows" ]]; then
             binary="p2p-nc.exe"
+            alias_binary="pnc.exe"
           fi
 
           if [[ "$GOOS" == "android" ]]; then
@@ -129,6 +131,12 @@ jobs:
             -ldflags="$linker_flags" \
             -o "dist/$package/$binary" \
             ./cmd/p2p-nc
+          go build \
+            -trimpath \
+            "${build_mode[@]}" \
+            -ldflags="$linker_flags" \
+            -o "dist/$package/$alias_binary" \
+            ./cmd/pnc
           cp LICENSE README.md README.RU.md "dist/$package/"
 
           if [[ "$ARCHIVE" == "zip" ]]; then

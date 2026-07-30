@@ -9,6 +9,8 @@
 ```bash
 GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
   github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@latest
+GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
+  github.com/santaklouse/go-p2p-netcat/cmd/pnc@latest
 ```
 
 `CGO_ENABLED=0` указан намеренно: проект не требует CGO, а этот режим обходит
@@ -29,6 +31,8 @@ set -e
 
 GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
   github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@latest
+GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
+  github.com/santaklouse/go-p2p-netcat/cmd/pnc@latest
 P2PNC_BIN_DIR="$(go env GOBIN)"
 if [ -z "$P2PNC_BIN_DIR" ]; then
   P2PNC_BIN_DIR="$(go env GOPATH)/bin"
@@ -50,31 +54,30 @@ admission handshake и PTY frames совместимы с исходной JavaS
 - постоянная Ed25519 identity в совместимом protobuf-формате;
 - TCP, QUIC v1, WebSocket и стандартный libp2p WebRTC-direct;
 - Noise/TLS, Yamux и Circuit Relay v2;
-- mDNS и IPFS Amino DHT, включая provider records;
+- mDNS, GossipSub peer discovery и IPFS Amino DHT, включая provider records;
 - приватные вращающиеся DHT rendezvous из `pnc1_` token;
 - mutual admission handshake до передачи прикладных байтов;
 - canonical CBOR, HKDF-SHA-256, AES-256-GCM и подписанные RouteRecord;
-- raw stdin/stdout, `-e`, TCP forwarding, SOCKS4/4a/5 и PTY;
+- native WebRTC v2 с Nostr/WebTorrent signaling, проверкой PeerId,
+  шифрованием через pairing token, flow control, 120-секундным восстановлением
+  потока и гонкой libp2p-маршрутов;
+- raw stdin/stdout, `-e`, TCP forwarding, SOCKS4/4a/5 и PTY, включая
+  Windows ConPTY;
 - `-l`, `-k`, `-w`, `-d`, `-p`, `-q`, `-S`, `-T`, `-i`, `-z`, `-e`,
-  `-4`, `-6`, relay, id и token.
+  `-4`, `-6`, relay, id и token;
+- имена команд `p2p-nc` и короткое `pnc`;
+- browser-safe core и статический англо-/русскоязычный PWA в `packages/core`
+  и `web`.
 
-Пока не перенесены два JavaScript-специфичных механизма:
-
-- собственный WebRTC signaling через публичные Nostr relay и WebTorrent
-  trackers с 120-секундным resume;
-- GossipSub `pubsub-peer-discovery` announcements. Флаг `--no-pubsub`
-  сохранён для CLI-совместимости, но сейчас ничего не переключает.
-
-Go-версия использует стандартный `webrtc-direct` транспорт go-libp2p.
-TCP/QUIC/Noise/Yamux, identity, pairing и прикладные протоколы совместимы с
-JavaScript CLI. PTY работает на macOS и Linux; Windows-сборка возвращает для
-`-i` явную ошибку, остальные режимы доступны. Статический браузерный PWA
-остаётся в исходном репозитории.
+Перенос из JavaScript-репозитория завершён. Go CLI сохраняет те же прикладные
+протоколы и совместим со старым CLI и браузерным клиентом. Браузерный код
+остаётся на TypeScript, поскольку исполняется непосредственно через Web API
+браузера, но теперь версионируется и развёртывается из этого репозитория.
 
 ## Установка
 
-Текущая стабильная версия — `v0.1.0`. Архив релиза содержит исполняемый файл
-`p2p-nc`, лицензию MIT и обе версии README. Перед установкой следует проверить
+Текущая стабильная версия — `v0.2.0`. Архив релиза содержит исполняемые файлы
+`p2p-nc` и `pnc`, лицензию MIT и обе версии README. Перед установкой следует проверить
 архив по файлу `SHA256SUMS`.
 
 ### Linux
@@ -85,7 +88,7 @@ JavaScript CLI. PTY работает на macOS и Linux; Windows-сборка �
 ```bash
 set -euo pipefail
 
-P2PNC_VERSION="v0.1.0"
+P2PNC_VERSION="v0.2.0"
 case "$(uname -m)" in
   x86_64|amd64) P2PNC_ARCH="amd64" ;;
   aarch64|arm64) P2PNC_ARCH="arm64" ;;
@@ -111,7 +114,7 @@ p2p-nc --version
 ```bash
 set -euo pipefail
 
-P2PNC_VERSION="v0.1.0"
+P2PNC_VERSION="v0.2.0"
 case "$(uname -m)" in
   x86_64|amd64) P2PNC_ARCH="amd64" ;;
   arm64|aarch64) P2PNC_ARCH="arm64" ;;
@@ -144,7 +147,7 @@ sudo xattr -d com.apple.quarantine /usr/local/bin/p2p-nc
 
 ```powershell
 $ErrorActionPreference = 'Stop'
-$Version = 'v0.1.0'
+$Version = 'v0.2.0'
 $Architecture = switch ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()) {
     'X64' { 'amd64' }
     'Arm64' { 'arm64' }
@@ -187,7 +190,7 @@ debugging, подключите телефон, установите Android Pla
 ```bash
 set -euo pipefail
 
-P2PNC_VERSION="v0.1.0"
+P2PNC_VERSION="v0.2.0"
 P2PNC_ANDROID_ABI="$(adb shell getprop ro.product.cpu.abi | tr -d '\r')"
 case "$P2PNC_ANDROID_ABI" in
   arm64-v8a) P2PNC_ANDROID_ARCH="arm64" ;;
@@ -224,7 +227,9 @@ toolchain:
 
 ```bash
 GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
-  github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@v0.1.0
+  github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@v0.2.0
+GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
+  github.com/santaklouse/go-p2p-netcat/cmd/pnc@v0.2.0
 "$(go env GOPATH)/bin/p2p-nc" --version
 ```
 
@@ -236,6 +241,7 @@ GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
 ```bash
 cd /Users/alexnevpryaga/projects/santaklouse/go-p2p-netcat
 GOTOOLCHAIN=auto /opt/homebrew/bin/go build -o p2p-nc ./cmd/p2p-nc
+GOTOOLCHAIN=auto /opt/homebrew/bin/go build -o pnc ./cmd/pnc
 ./p2p-nc --version
 ```
 
@@ -243,6 +249,7 @@ GOTOOLCHAIN=auto /opt/homebrew/bin/go build -o p2p-nc ./cmd/p2p-nc
 
 ```bash
 GOTOOLCHAIN=auto /opt/homebrew/bin/go install ./cmd/p2p-nc
+GOTOOLCHAIN=auto /opt/homebrew/bin/go install ./cmd/pnc
 ```
 
 На этой машине `/usr/local/bin/go` — устаревший Go 1.13 для Intel. Для
@@ -387,7 +394,7 @@ frames.
 
 Сборки Linux и macOS публикуются как `.tar.gz`, сборки Windows — как `.zip`.
 Сборки Android также публикуются как `.tar.gz`. Каждый релиз содержит файл
-`SHA256SUMS`. Семантические теги, например `v0.1.0`, создают стабильные релизы.
+`SHA256SUMS`. Семантические теги, например `v0.2.0`, создают стабильные релизы.
 Сборки из `main` помечаются как prerelease и получают детерминированный тег,
 который начинается с `main-` и заканчивается первыми 12 символами SHA коммита.
 Повторный запуск workflow обновляет тот же релиз, а не создаёт дубликат.

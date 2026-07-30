@@ -5,7 +5,11 @@ import (
 	p2pnode "github.com/santaklouse/go-p2p-netcat/p2p"
 )
 
-func nodeConfig(opts *options, privateKey crypto.PrivKey, listen, dhtServer, relayServer bool) p2pnode.Config {
+func nodeConfig(
+	opts *options,
+	privateKey crypto.PrivKey,
+	listen, dhtServer, relayServer, privateDiscovery bool,
+) p2pnode.Config {
 	ipVersion := 0
 	if opts.ipv4 {
 		ipVersion = 4
@@ -21,19 +25,21 @@ func nodeConfig(opts *options, privateKey crypto.PrivKey, listen, dhtServer, rel
 		bootstrap = nil
 	}
 	return p2pnode.Config{
-		PrivateKey:    privateKey,
-		TransportPort: opts.transportPort,
-		IPVersion:     ipVersion,
-		Announce:      opts.announce,
-		Relays:        opts.relays,
-		Bootstrap:     bootstrap,
-		EnableDHT:     enableDHT,
-		EnableMDNS:    enableMDNS,
-		EnableQUIC:    enableQUIC,
-		EnableWebRTC:  enableWebRTC,
-		Listen:        listen,
-		DHTServer:     dhtServer,
-		RelayServer:   relayServer,
-		Verbose:       opts.verbose,
+		PrivateKey:     privateKey,
+		TransportPort:  opts.transportPort,
+		IPVersion:      ipVersion,
+		Announce:       opts.announce,
+		Relays:         opts.relays,
+		Bootstrap:      bootstrap,
+		EnableDHT:      enableDHT,
+		EnableMDNS:     enableMDNS,
+		EnablePubSub:   !opts.noPubsub && !opts.tor,
+		PubSubDiscover: !privateDiscovery,
+		EnableQUIC:     enableQUIC,
+		EnableWebRTC:   enableWebRTC,
+		Listen:         listen,
+		DHTServer:      dhtServer,
+		RelayServer:    relayServer,
+		Verbose:        opts.verbose,
 	}
 }
