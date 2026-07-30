@@ -27,7 +27,7 @@ listener, background service, shell, cron job или login item.
 ```bash
 curl -fsSL \
   https://raw.githubusercontent.com/santaklouse/go-p2p-netcat/main/deploy/deploy.sh |
-  P2PNC_VERSION=v0.3.0 bash
+  P2PNC_VERSION=v0.4.0 bash
 ```
 
 Установить без повышенных привилегий:
