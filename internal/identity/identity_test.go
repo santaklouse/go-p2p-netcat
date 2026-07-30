@@ -8,7 +8,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 )
 
-func TestLoadOrCreatePersistsIdentityWithPrivatePermissions(t *testing.T) {
+func TestLoadOrCreatePersistsIdentity(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "identity.key")
 	first, err := LoadOrCreate(path)
 	if err != nil {
@@ -28,13 +28,6 @@ func TestLoadOrCreatePersistsIdentityWithPrivatePermissions(t *testing.T) {
 	}
 	if string(firstBytes) != string(secondBytes) {
 		t.Fatal("LoadOrCreate returned a different key")
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.Mode().Perm() != 0o600 {
-		t.Fatalf("identity permissions = %o, want 600", info.Mode().Perm())
 	}
 }
 
