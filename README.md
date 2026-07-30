@@ -2,6 +2,41 @@
 
 **English** | [Русский](README.RU.md)
 
+## Quick install
+
+Install the latest tagged version:
+
+```bash
+GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
+  github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@latest
+```
+
+`CGO_ENABLED=0` is intentional: the project does not require CGO, and this
+avoids macOS DWARF linking failures when Homebrew LLVM takes precedence over
+Apple's toolchain. If CGO is explicitly required, select Apple Clang:
+
+```bash
+GOTOOLCHAIN=auto CGO_ENABLED=1 CC=/usr/bin/clang CXX=/usr/bin/clang++ \
+  go install github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@latest
+```
+
+On macOS and Linux, install it and immediately create the `p2p-netcat`
+command as a symbolic link next to `p2p-nc`:
+
+```bash
+set -e
+
+GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
+  github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@latest
+P2PNC_BIN_DIR="$(go env GOBIN)"
+if [ -z "$P2PNC_BIN_DIR" ]; then
+  P2PNC_BIN_DIR="$(go env GOPATH)/bin"
+fi
+ln -sf "$P2PNC_BIN_DIR/p2p-nc" "$P2PNC_BIN_DIR/p2p-netcat"
+export PATH="$P2PNC_BIN_DIR:$PATH"
+p2p-netcat --version
+```
+
 A Go implementation of `p2p-netcat`: a bidirectional netcat-like stream
 addressed by a libp2p `PeerId` instead of an IP address. The
 `/p2p-netcat/1.0.0/<logical-port>` wire protocol, identity files, pairing
@@ -188,7 +223,8 @@ adb shell /data/local/tmp/p2p-nc id --identity /data/local/tmp/p2p-nc-identity.k
 With a recent Go installation and automatic toolchain downloads enabled:
 
 ```bash
-GOTOOLCHAIN=auto go install github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@v0.1.0
+GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
+  github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@v0.1.0
 "$(go env GOPATH)/bin/p2p-nc" --version
 ```
 
