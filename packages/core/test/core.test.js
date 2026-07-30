@@ -328,7 +328,7 @@ test('pairing token encrypts SDP on native signaling relays and trackers', async
   }
 })
 
-test('общая сеть использует одну PubSub-тему и переданный STUN-пул', () => {
+test('shared networking uses one PubSub topic and the supplied STUN pool', () => {
   assert.equal(PUBSUB_DISCOVERY_TOPIC, 'io.github.santaklouse.p2p-netcat.peer-discovery.v1')
   assert.equal(PUBSUB_DISCOVERY_INTERVAL_MS, 10_000)
   assert.deepEqual(DEFAULT_STUN_URLS, [
@@ -629,14 +629,14 @@ test('signed route records bind addresses and services to the exact PeerId', asy
   assert.equal((capabilities & ROUTE_CAPABILITIES.webrtc) !== 0, true)
 })
 
-test('общая библиотека валидирует логический порт и protocol id', () => {
+test('shared library validates the logical port and protocol id', () => {
   assert.equal(validateService('8080'), 8080)
   assert.equal(protocolForService(8080), '/p2p-netcat/1.0.0/8080')
-  assert.throws(() => validateService(0), /от 1 до 65535/)
-  assert.throws(() => validateService(65536), /от 1 до 65535/)
+  assert.throws(() => validateService(0), /between 1 and 65535/)
+  assert.throws(() => validateService(65536), /between 1 and 65535/)
 })
 
-test('общая библиотека строит неизменяемый relay dial plan', async () => {
+test('shared library builds an immutable relay dial plan', async () => {
   const relayId = '12D3KooWEqeQRAJ61HSv9yMPk8yzjke7NxmTFcvFt4GzwXxzVjXW'
   const targetId = '12D3KooWQ3uxpHgjDKE6vGmvzKS8RPbxUDLwJ7XCLaD6YXdUfbR9'
   const relay = `/ip4/127.0.0.1/tcp/9091/ws/p2p/${relayId}`
@@ -652,24 +652,24 @@ test('общая библиотека строит неизменяемый rela
   assert.ok(Object.isFrozen(plan))
 })
 
-test('общая библиотека применяет browser security policy к relay', async () => {
+test('shared library applies the browser security policy to relays', async () => {
   const relayId = '12D3KooWEqeQRAJ61HSv9yMPk8yzjke7NxmTFcvFt4GzwXxzVjXW'
   const ws = `/dns4/relay.example/tcp/443/ws/p2p/${relayId}`
   const wss = `/dns4/relay.example/tcp/443/wss/p2p/${relayId}`
 
-  assert.throws(() => normalizeRelayAddress(ws, { secureContext: true }), /защищённому \/wss/)
+  assert.throws(() => normalizeRelayAddress(ws, { secureContext: true }), /secure \/wss/)
   assert.equal(normalizeRelayAddress(wss, { requireWebSocket: true, secureContext: true }), wss)
   assert.equal(browserDialableAddress(wss, { secureContext: true }), true)
   assert.equal(browserDialableAddress('/ip4/127.0.0.1/tcp/9090', { secureContext: true }), false)
 })
 
-test('общая сортировка предпочитает WebRTC и QUIC, relay оставляет последним', () => {
+test('shared ordering prefers WebRTC and QUIC and leaves relay last', () => {
   assert.ok(preferDialAddresses('/ip4/127.0.0.1/udp/1/webrtc-direct', '/ip4/127.0.0.1/udp/1/quic-v1') < 0)
   assert.ok(preferDialAddresses('/ip4/127.0.0.1/udp/1/quic-v1', '/ip4/127.0.0.1/tcp/1') < 0)
   assert.ok(preferDialAddresses('/ip4/127.0.0.1/tcp/1', '/ip4/127.0.0.1/tcp/2/ws/p2p/relay/p2p-circuit') < 0)
 })
 
-test('WebRTC room и authentication frame детерминированы', async () => {
+test('WebRTC room and authentication frame are deterministic', async () => {
   const targetId = '12D3KooWQ3uxpHgjDKE6vGmvzKS8RPbxUDLwJ7XCLaD6YXdUfbR9'
   const challenge = new Uint8Array(32).fill(7)
   assert.equal(webRtcRoomId(targetId, 31337), `${targetId}:31337`)
@@ -680,7 +680,7 @@ test('WebRTC room и authentication frame детерминированы', async
   assert.deepEqual([...decoded.signature], [4, 5])
 })
 
-test('core подписывает и проверяет native WebRTC challenge по точному PeerId', async () => {
+test('core signs and verifies a native WebRTC challenge for the exact PeerId', async () => {
   const privateKey = await generateKeyPair('Ed25519')
   const peerId = peerIdFromPrivateKey(privateKey).toString()
   const challenge = crypto.getRandomValues(new Uint8Array(32))
@@ -690,7 +690,7 @@ test('core подписывает и проверяет native WebRTC challenge 
   assert.equal(await verifyWebRtcAuthResponse(response, peerId, 31338, challenge), false)
 })
 
-test('native WebRTC attempts используют одну client-session identity', () => {
+test('native WebRTC attempts share one client-session identity', () => {
   const clientId = 'ClientSession1234567'
   const challenge = createWebRtcClientChallenge(clientId)
 
@@ -736,7 +736,7 @@ test('WebRTC action hub owns action mapping and reconnects the same stream', asy
   assert.equal(stream.status, 'closed')
 })
 
-test('WebRTC stream сохраняет порядок, backpressure и EOF', async () => {
+test('WebRTC stream preserves ordering, backpressure, and EOF', async () => {
   const sent = []
   const controls = []
   const stream = new WebRtcStream({

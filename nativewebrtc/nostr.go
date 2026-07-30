@@ -40,7 +40,7 @@ func NewNostrSession(
 		return nil, err
 	}
 	if !clientIDPattern.MatchString(peerID) {
-		return nil, errors.New("native signaling peerId должен содержать ровно 20 латинских букв или цифр")
+		return nil, errors.New("native signaling peerId must contain exactly 20 ASCII letters or digits")
 	}
 	if len(urls) == 0 {
 		urls = append([]string(nil), DefaultNostrURLs...)

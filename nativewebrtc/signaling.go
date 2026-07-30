@@ -85,7 +85,7 @@ func CreateSignalingSessionID() (string, error) {
 func SignalingRoomTopic(roomID string, token *pairing.Token) (string, error) {
 	roomID = strings.TrimSpace(roomID)
 	if roomID == "" {
-		return "", errors.New("native signaling roomId не задан")
+		return "", errors.New("native signaling roomId is required")
 	}
 	if token != nil {
 		return token.RendezvousID("signaling", 0)
@@ -109,23 +109,23 @@ func TorrentInfoHash(topic string) string {
 
 func prepareOutgoing(signal Signal, topic, peerID string, token *pairing.Token) (Signal, error) {
 	if !clientIDPattern.MatchString(peerID) {
-		return Signal{}, errors.New("native signaling peerId должен содержать ровно 20 латинских букв или цифр")
+		return Signal{}, errors.New("native signaling peerId must contain exactly 20 ASCII letters or digits")
 	}
 	switch signal.Type {
 	case "offer", "answer":
 		if signal.SDP == "" {
-			return Signal{}, fmt.Errorf("native signaling %s не содержит SDP", signal.Type)
+			return Signal{}, fmt.Errorf("native signaling %s does not contain SDP", signal.Type)
 		}
 	case "candidate":
 		if signal.Candidate == nil {
-			return Signal{}, errors.New("native signaling candidate не задан")
+			return Signal{}, errors.New("native signaling candidate is required")
 		}
 	case "bye":
 	default:
-		return Signal{}, fmt.Errorf("неподдерживаемый native signaling type: %s", signal.Type)
+		return Signal{}, fmt.Errorf("unsupported native signaling type: %s", signal.Type)
 	}
 	if len(signal.SessionID) < 8 || len(signal.SessionID) > 128 {
-		return Signal{}, errors.New("native signaling sessionId некорректен")
+		return Signal{}, errors.New("native signaling sessionId is invalid")
 	}
 	signal.Version = SignalVersion
 	signal.Room = topic

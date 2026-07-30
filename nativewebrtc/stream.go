@@ -133,7 +133,7 @@ func (s *Stream) Receive(frame Frame) error {
 	case FrameControl:
 		s.receiveControl(string(frame.Payload))
 	default:
-		return fmt.Errorf("неожиданный native WebRTC frame после аутентификации: %d", frame.Type)
+		return fmt.Errorf("unexpected native WebRTC frame after authentication: %d", frame.Type)
 	}
 	return nil
 }

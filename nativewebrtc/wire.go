@@ -44,27 +44,27 @@ func EncodeFrame(frameType byte, payload []byte) []byte {
 
 func DecodeFrame(value []byte) (Frame, error) {
 	if len(value) < 2 {
-		return Frame{}, errors.New("native WebRTC frame короче заголовка")
+		return Frame{}, errors.New("native WebRTC frame is shorter than its header")
 	}
 	if value[0] != ProtocolVersion {
-		return Frame{}, fmt.Errorf("неподдерживаемая версия native WebRTC: %d", value[0])
+		return Frame{}, fmt.Errorf("unsupported native WebRTC version: %d", value[0])
 	}
 	return Frame{Type: value[1], Payload: append([]byte(nil), value[2:]...)}, nil
 }
 
 func RoomID(peerID peer.ID, service uint16) (string, error) {
 	if peerID == "" {
-		return "", errors.New("PeerId не задан")
+		return "", errors.New("PeerId is required")
 	}
 	if service == 0 {
-		return "", errors.New("логический порт должен быть от 1 до 65535")
+		return "", errors.New("logical port must be between 1 and 65535")
 	}
 	return fmt.Sprintf("%s:%d", peerID, service), nil
 }
 
 func AuthPayload(peerID peer.ID, service uint16, challenge []byte) ([]byte, error) {
 	if len(challenge) != 32 {
-		return nil, fmt.Errorf("WebRTC challenge должен содержать 32 байта, получено: %d", len(challenge))
+		return nil, fmt.Errorf("WebRTC challenge must contain 32 bytes; got %d", len(challenge))
 	}
 	room, err := RoomID(peerID, service)
 	if err != nil {
@@ -76,7 +76,7 @@ func AuthPayload(peerID peer.ID, service uint16, challenge []byte) ([]byte, erro
 
 func CreateClientChallenge(clientID string) ([]byte, error) {
 	if !clientIDPattern.MatchString(clientID) {
-		return nil, errors.New("WebRTC client ID должен содержать ровно 20 латинских букв или цифр")
+		return nil, errors.New("WebRTC client ID must contain exactly 20 ASCII letters or digits")
 	}
 	result := make([]byte, 32)
 	if _, err := rand.Read(result); err != nil {
@@ -99,7 +99,7 @@ func ClientIDFromChallenge(challenge []byte) string {
 
 func SignAuthResponse(privateKey crypto.PrivKey, service uint16, challenge []byte) ([]byte, error) {
 	if privateKey == nil {
-		return nil, errors.New("libp2p private key не задан")
+		return nil, errors.New("libp2p private key is required")
 	}
 	peerID, err := peer.IDFromPrivateKey(privateKey)
 	if err != nil {
@@ -145,7 +145,7 @@ func VerifyAuthResponse(value []byte, expected peer.ID, service uint16, challeng
 
 func EncodeAuthResponse(publicKey, signature []byte) ([]byte, error) {
 	if len(publicKey) > 0xffff || len(signature) > 0xffff {
-		return nil, errors.New("WebRTC authentication response слишком большой")
+		return nil, errors.New("WebRTC authentication response is too large")
 	}
 	result := make([]byte, 5+len(publicKey)+len(signature))
 	result[0] = 1
@@ -158,12 +158,12 @@ func EncodeAuthResponse(publicKey, signature []byte) ([]byte, error) {
 
 func DecodeAuthResponse(value []byte) ([]byte, []byte, error) {
 	if len(value) < 5 || value[0] != 1 {
-		return nil, nil, errors.New("неподдерживаемый WebRTC authentication response")
+		return nil, nil, errors.New("unsupported WebRTC authentication response")
 	}
 	publicLength := int(binary.BigEndian.Uint16(value[1:3]))
 	signatureLength := int(binary.BigEndian.Uint16(value[3:5]))
 	if 5+publicLength+signatureLength != len(value) {
-		return nil, nil, errors.New("повреждённый WebRTC authentication response")
+		return nil, nil, errors.New("malformed WebRTC authentication response")
 	}
 	return append([]byte(nil), value[5:5+publicLength]...),
 		append([]byte(nil), value[5+publicLength:]...), nil

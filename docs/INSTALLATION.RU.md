@@ -8,6 +8,59 @@
 - macOS, Linux или Windows;
 - исходящие TCP/WSS и UDP для discovery, signaling, QUIC и WebRTC.
 
+## Проверяемый deploy-скрипт
+
+Установить последний release для Linux, macOS или Android:
+
+```bash
+curl -fsSL \
+  https://raw.githubusercontent.com/santaklouse/go-p2p-netcat/main/deploy/deploy.sh |
+  bash
+```
+
+Скрипт определяет release target, загружает архив и `SHA256SUMS`, проверяет
+SHA-256 до распаковки и устанавливает все три имени команды. Он не запускает
+listener, background service, shell, cron job или login item.
+
+Закрепить версию:
+
+```bash
+curl -fsSL \
+  https://raw.githubusercontent.com/santaklouse/go-p2p-netcat/main/deploy/deploy.sh |
+  P2PNC_VERSION=v0.2.0 bash
+```
+
+Установить без повышенных привилегий:
+
+```bash
+install -d -m 0755 ~/.local/bin
+curl -fsSL \
+  https://raw.githubusercontent.com/santaklouse/go-p2p-netcat/main/deploy/deploy.sh |
+  P2PNC_INSTALL_DIR="$HOME/.local/bin" P2PNC_NO_SUDO=1 bash
+```
+
+Удалить из того же каталога:
+
+```bash
+curl -fsSL \
+  https://raw.githubusercontent.com/santaklouse/go-p2p-netcat/main/deploy/deploy.sh |
+  P2PNC_INSTALL_DIR="$HOME/.local/bin" P2PNC_UNINSTALL=1 bash
+```
+
+Если требуется аудит, сначала скачайте и изучите скрипт:
+
+```bash
+curl -fsSLo /tmp/p2p-nc-deploy.sh \
+  https://raw.githubusercontent.com/santaklouse/go-p2p-netcat/main/deploy/deploy.sh
+less /tmp/p2p-nc-deploy.sh
+bash /tmp/p2p-nc-deploy.sh
+```
+
+Полный список переменных находится в начале
+[`deploy/deploy.sh`](../deploy/deploy.sh).
+
+## Установка через Go
+
 Установить оба имени команды:
 
 ```bash

@@ -31,7 +31,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	if code, handled, err := runUnderTor(args, stdin, stdout, stderr); handled {
 		if err != nil && !cli.QuietRequested(args) {
-			fmt.Fprintf(stderr, "[p2p-nc] ошибка: %v\n", err)
+			fmt.Fprintf(stderr, "[p2p-nc] error: %v\n", err)
 		}
 		return code
 	}
@@ -45,7 +45,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	command.SetContext(ctx)
 	if err := command.Execute(); err != nil {
 		if !cli.QuietRequested(args) {
-			fmt.Fprintf(stderr, "[p2p-nc] ошибка: %v\n", err)
+			fmt.Fprintf(stderr, "[p2p-nc] error: %v\n", err)
 		}
 		return 1
 	}
@@ -58,7 +58,7 @@ func runUnderTor(args []string, stdin io.Reader, stdout, stderr io.Writer) (int,
 		return 0, false, nil
 	}
 	if runtime.GOOS == "windows" {
-		return 1, true, errors.New("опция -T требует torsocks и поддерживается только на Linux/macOS")
+		return 1, true, errors.New("-T requires torsocks and is supported only on Linux and macOS")
 	}
 	for _, value := range args {
 		if value == "-h" || value == "--help" || value == "-V" || value == "--version" {
@@ -68,11 +68,11 @@ func runUnderTor(args []string, stdin io.Reader, stdout, stderr io.Writer) (int,
 	host := environmentOr("P2P_NETCAT_TOR_HOST", environmentOr("GSOCKET_SOCKS_IP", "127.0.0.1"))
 	port := environmentOr("P2P_NETCAT_TOR_PORT", environmentOr("GSOCKET_SOCKS_PORT", "9050"))
 	if net.ParseIP(host) == nil {
-		return 1, true, fmt.Errorf("Tor SOCKS host должен быть числовым IP-адресом: %s", host)
+		return 1, true, fmt.Errorf("Tor SOCKS host must be a numeric IP address: %s", host)
 	}
 	portNumber, err := strconv.Atoi(port)
 	if err != nil || portNumber < 1 || portNumber > 65535 {
-		return 1, true, fmt.Errorf("некорректный Tor SOCKS port: %s", port)
+		return 1, true, fmt.Errorf("invalid Tor SOCKS port: %s", port)
 	}
 	executable, err := os.Executable()
 	if err != nil {
@@ -95,7 +95,7 @@ func runUnderTor(args []string, stdin io.Reader, stdout, stderr io.Writer) (int,
 		return exit.ExitCode(), true, nil
 	}
 	if strings.Contains(err.Error(), "executable file not found") {
-		return 1, true, fmt.Errorf("не найден %s; установите Tor и torsocks", commandName)
+		return 1, true, fmt.Errorf("%s was not found; install Tor and torsocks", commandName)
 	}
 	return 1, true, err
 }

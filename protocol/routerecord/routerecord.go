@@ -122,13 +122,13 @@ func Verify(envelope []byte, options VerifyOptions) (Record, error) {
 	var version uint64
 	var payload, publicBytes, signature []byte
 	if strict.Unmarshal(fields[0], &version) != nil || version != EnvelopeVersion {
-		return empty, errors.New("неподдерживаемая версия route record envelope")
+		return empty, errors.New("unsupported route record envelope version")
 	}
 	if strict.Unmarshal(fields[1], &payload) != nil || len(payload) == 0 || len(payload) > MaxPayloadBytes {
-		return empty, fmt.Errorf("route record payload должен содержать 1..%d байт", MaxPayloadBytes)
+		return empty, fmt.Errorf("route record payload must contain 1..%d bytes", MaxPayloadBytes)
 	}
 	if strict.Unmarshal(fields[2], &publicBytes) != nil || strict.Unmarshal(fields[3], &signature) != nil {
-		return empty, errors.New("некорректные ключ или подпись route record")
+		return empty, errors.New("invalid route record key or signature")
 	}
 	publicKey, err := crypto.UnmarshalPublicKey(publicBytes)
 	if err != nil {
@@ -136,7 +136,7 @@ func Verify(envelope []byte, options VerifyOptions) (Record, error) {
 	}
 	valid, err := publicKey.Verify(payload, signature)
 	if err != nil || !valid {
-		return empty, errors.New("подпись route record недействительна")
+		return empty, errors.New("route record signature is invalid")
 	}
 	record, err := DecodePayload(payload)
 	if err != nil {
@@ -147,13 +147,13 @@ func Verify(envelope []byte, options VerifyOptions) (Record, error) {
 		return empty, err
 	}
 	if record.PeerID != authenticated {
-		return empty, fmt.Errorf("PeerId route record %s не соответствует ключу %s", record.PeerID, authenticated)
+		return empty, fmt.Errorf("route record PeerId %s does not match key %s", record.PeerID, authenticated)
 	}
 	if options.ExpectedPeerID != "" && record.PeerID != options.ExpectedPeerID {
-		return empty, fmt.Errorf("route record принадлежит %s, а не %s", record.PeerID, options.ExpectedPeerID)
+		return empty, fmt.Errorf("route record belongs to %s, not %s", record.PeerID, options.ExpectedPeerID)
 	}
 	if options.ExpectedService != 0 && !containsService(record.Services, options.ExpectedService) {
-		return empty, fmt.Errorf("route record не объявляет логический порт %d", options.ExpectedService)
+		return empty, fmt.Errorf("route record does not advertise logical port %d", options.ExpectedService)
 	}
 	now := options.Now
 	if now.IsZero() {
@@ -164,16 +164,16 @@ func Verify(envelope []byte, options VerifyOptions) (Record, error) {
 		skew = 30 * time.Second
 	}
 	if time.Unix(int64(record.IssuedAt), 0).After(now.Add(skew)) {
-		return empty, errors.New("route record выпущена в будущем")
+		return empty, errors.New("route record was issued in the future")
 	}
 	if time.Unix(int64(record.ExpiresAt), 0).Before(now.Add(-skew)) {
-		return empty, errors.New("route record истекла")
+		return empty, errors.New("route record has expired")
 	}
 	reencoded, err := canonical.Marshal(map[uint64]any{
 		0: version, 1: payload, 2: publicBytes, 3: signature,
 	})
 	if err != nil || !bytes.Equal(reencoded, envelope) {
-		return empty, errors.New("route record envelope не соответствует deterministic RFC 8949")
+		return empty, errors.New("route record envelope is not deterministic RFC 8949 CBOR")
 	}
 	return record, nil
 }
@@ -221,7 +221,7 @@ func DecodePayload(payload []byte) (Record, error) {
 	}
 	for _, value := range values {
 		if err := strict.Unmarshal(value.raw, value.target); err != nil {
-			return Record{}, fmt.Errorf("декодировать route record: %w", err)
+			return Record{}, fmt.Errorf("decode route record: %w", err)
 		}
 	}
 	peerID, err := peer.Decode(peerText)
@@ -234,7 +234,7 @@ func DecodePayload(payload []byte) (Record, error) {
 	}
 	for _, service := range services {
 		if service == 0 || service > 65535 {
-			return Record{}, errors.New("некорректный логический порт в route record")
+			return Record{}, errors.New("invalid logical port in route record")
 		}
 		record.Services = append(record.Services, uint16(service))
 	}
@@ -252,32 +252,32 @@ func DecodePayload(payload []byte) (Record, error) {
 	}
 	reencoded, err := EncodePayload(record)
 	if err != nil || !bytes.Equal(reencoded, payload) {
-		return Record{}, errors.New("route record payload не соответствует deterministic RFC 8949")
+		return Record{}, errors.New("route record payload is not deterministic RFC 8949 CBOR")
 	}
 	return record, nil
 }
 
 func normalize(record Record) (Record, error) {
 	if record.Version != Version {
-		return Record{}, fmt.Errorf("неподдерживаемая версия route record: %d", record.Version)
+		return Record{}, fmt.Errorf("unsupported route record version: %d", record.Version)
 	}
 	if record.PeerID == "" {
-		return Record{}, errors.New("PeerId route record не задан")
+		return Record{}, errors.New("route record PeerId is required")
 	}
 	if record.ExpiresAt <= record.IssuedAt {
-		return Record{}, errors.New("expiration route record должна быть позже issuedAt")
+		return Record{}, errors.New("route record expiration must be later than issuedAt")
 	}
 	if len(record.Services) == 0 || len(record.Services) > MaxServices {
-		return Record{}, fmt.Errorf("route record должна содержать 1..%d сервисов", MaxServices)
+		return Record{}, fmt.Errorf("route record must contain 1..%d services", MaxServices)
 	}
 	record.Services = uniqueServices(record.Services)
 	if len(record.Addresses) > MaxAddresses || len(record.RelayReservations) > MaxAddresses {
-		return Record{}, fmt.Errorf("route record поддерживает не более %d адресов каждого типа", MaxAddresses)
+		return Record{}, fmt.Errorf("route record supports at most %d addresses of each type", MaxAddresses)
 	}
 	record.Addresses = uniqueAddresses(record.Addresses)
 	record.RelayReservations = uniqueAddresses(record.RelayReservations)
 	if record.Capabilities&^allCapabilities != 0 {
-		return Record{}, fmt.Errorf("некорректная capability mask: %d", record.Capabilities)
+		return Record{}, fmt.Errorf("invalid capability mask: %d", record.Capabilities)
 	}
 	return record, nil
 }
@@ -285,15 +285,15 @@ func normalize(record Record) (Record, error) {
 func decodeMap(input []byte, allowed map[uint64]bool) (map[uint64]cbor.RawMessage, error) {
 	var fields map[uint64]cbor.RawMessage
 	if err := strict.Unmarshal(input, &fields); err != nil {
-		return nil, fmt.Errorf("некорректный deterministic CBOR route record: %w", err)
+		return nil, fmt.Errorf("invalid deterministic CBOR route record: %w", err)
 	}
 	for key := range fields {
 		if !allowed[key] {
-			return nil, fmt.Errorf("неизвестное поле route record: %d", key)
+			return nil, fmt.Errorf("unknown route record field: %d", key)
 		}
 	}
 	if len(fields) != len(allowed) {
-		return nil, errors.New("route record содержит не все обязательные поля")
+		return nil, errors.New("route record is missing required fields")
 	}
 	return fields, nil
 }

@@ -7,6 +7,20 @@
 Install the latest tagged version:
 
 ```bash
+curl -fsSL \
+  https://raw.githubusercontent.com/santaklouse/go-p2p-netcat/main/deploy/deploy.sh |
+  bash
+```
+
+The deploy script detects Linux, macOS, or Android and the processor
+architecture, downloads the matching release, verifies it against
+`SHA256SUMS`, and installs `p2p-nc`, `pnc`, and `p2p-netcat`. See
+[installation](docs/INSTALLATION.md#verified-deploy-script) for version
+pinning, a custom destination, and uninstalling.
+
+Alternatively, install with Go:
+
+```bash
 GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
   github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@latest
 GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
@@ -412,6 +426,19 @@ adb push p2p-nc-android-arm64/p2p-nc /data/local/tmp/p2p-nc
 adb shell chmod 755 /data/local/tmp/p2p-nc
 adb shell /data/local/tmp/p2p-nc --version
 ```
+
+## Documentation
+
+- [Practical usage cookbook](docs/USE_CASES.md): OpenSSH, OpenVPN,
+  port-forwarding, SOCKS, WireGuard limitations, file transfer, relay, and
+  systemd examples.
+- [Installation](docs/INSTALLATION.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [gs-netcat compatibility](docs/GS_NETCAT_COMPAT.md)
+- [Pairing protocol](docs/PAIRING_PROTOCOL.md)
+- [Relay API](docs/RELAY_API.md)
+- [Native WebRTC migration](docs/WEBRTC_MIGRATION.md)
+- [GitHub Wiki](https://github.com/santaklouse/go-p2p-netcat/wiki)
 
 ## Project structure
 

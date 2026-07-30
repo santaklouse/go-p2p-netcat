@@ -10,6 +10,7 @@ build:
 
 test:
 	GOTOOLCHAIN=auto $(GO) test ./...
+	bash deploy/deploy_test.sh
 
 vet:
 	GOTOOLCHAIN=auto $(GO) vet ./...

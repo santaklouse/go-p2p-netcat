@@ -28,7 +28,7 @@ func (s *torrentSocket) write(value any) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.socket == nil {
-		return errors.New("tracker WebSocket не подключён")
+		return errors.New("tracker WebSocket is not connected")
 	}
 	return s.socket.WriteJSON(value)
 }
@@ -63,7 +63,7 @@ func NewTorrentSession(
 		return nil, err
 	}
 	if !clientIDPattern.MatchString(peerID) {
-		return nil, errors.New("native signaling peerId должен содержать ровно 20 латинских букв или цифр")
+		return nil, errors.New("native signaling peerId must contain exactly 20 ASCII letters or digits")
 	}
 	if len(urls) == 0 {
 		urls = append([]string(nil), DefaultTorrentURLs...)
@@ -95,7 +95,7 @@ func (s *TorrentSession) Publish(_ context.Context, value Signal) error {
 		return err
 	}
 	if signal.Type == "candidate" {
-		return errors.New("native BitTorrent signaling требует complete non-trickle SDP")
+		return errors.New("native BitTorrent signaling requires complete non-trickle SDP")
 	}
 	s.mu.Lock()
 	switch signal.Type {
@@ -323,7 +323,7 @@ func (s *TorrentSession) writeAll(payload any) error {
 		if firstErr != nil {
 			return firstErr
 		}
-		return fmt.Errorf("ни один WebTorrent tracker не подключён")
+		return fmt.Errorf("no WebTorrent tracker is connected")
 	}
 	return nil
 }

@@ -7,6 +7,19 @@
 Установить последнюю версию с семантическим тегом:
 
 ```bash
+curl -fsSL \
+  https://raw.githubusercontent.com/santaklouse/go-p2p-netcat/main/deploy/deploy.sh |
+  bash
+```
+
+Deploy-скрипт определяет Linux, macOS или Android и архитектуру процессора,
+загружает подходящий release, проверяет его по `SHA256SUMS` и устанавливает
+`p2p-nc`, `pnc` и `p2p-netcat`. Закрепление версии, другой каталог и удаление
+описаны в разделе [установки](docs/INSTALLATION.RU.md#проверяемый-deploy-скрипт).
+
+Альтернативная установка через Go:
+
+```bash
 GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
   github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@latest
 GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
@@ -410,6 +423,19 @@ adb push p2p-nc-android-arm64/p2p-nc /data/local/tmp/p2p-nc
 adb shell chmod 755 /data/local/tmp/p2p-nc
 adb shell /data/local/tmp/p2p-nc --version
 ```
+
+## Документация
+
+- [Практические сценарии](docs/USE_CASES.RU.md): OpenSSH, OpenVPN,
+  port-forwarding, SOCKS, ограничения WireGuard, передача файлов, relay и
+  systemd.
+- [Установка](docs/INSTALLATION.RU.md)
+- [Архитектура](docs/ARCHITECTURE.RU.md)
+- [Совместимость с gs-netcat](docs/GS_NETCAT_COMPAT.RU.md)
+- [Pairing protocol](docs/PAIRING_PROTOCOL.RU.md)
+- [Relay API](docs/RELAY_API.RU.md)
+- [Миграция native WebRTC](docs/WEBRTC_MIGRATION.RU.md)
+- [GitHub Wiki](https://github.com/santaklouse/go-p2p-netcat/wiki)
 
 ## Структура
 

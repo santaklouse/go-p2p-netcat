@@ -16,7 +16,7 @@ func TCPForward(ctx context.Context, stream Stream, host string, port int, timeo
 	dialer := net.Dialer{Timeout: timeout}
 	connection, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(port)))
 	if err != nil {
-		return fmt.Errorf("подключиться к TCP %s:%d: %w", host, port, err)
+		return fmt.Errorf("connect to TCP %s:%d: %w", host, port, err)
 	}
 	defer connection.Close()
 	if tcp, ok := connection.(*net.TCPConn); ok {
@@ -40,7 +40,7 @@ func SOCKS(ctx context.Context, stream Stream, timeout time.Duration) error {
 	case 4:
 		host, port, success, failure, err = negotiateSOCKS4(reader, stream)
 	default:
-		err = fmt.Errorf("неподдерживаемая версия SOCKS: %d", version)
+		err = fmt.Errorf("unsupported SOCKS version: %d", version)
 	}
 	if err != nil {
 		return err
@@ -114,7 +114,7 @@ func negotiateSOCKS5(reader *bufio.Reader, writer io.Writer) (string, int, []byt
 	}
 	if !supportsNone {
 		_, _ = writer.Write([]byte{5, 0xff})
-		return "", 0, nil, nil, errors.New("SOCKS5-клиент не предложил режим без аутентификации")
+		return "", 0, nil, nil, errors.New("SOCKS5 client did not offer the no-authentication method")
 	}
 	if _, err := writer.Write([]byte{5, 0}); err != nil {
 		return "", 0, nil, nil, err
@@ -124,7 +124,7 @@ func negotiateSOCKS5(reader *bufio.Reader, writer io.Writer) (string, int, []byt
 		return "", 0, nil, nil, err
 	}
 	if header[0] != 5 || header[1] != 1 || header[2] != 0 {
-		return "", 0, nil, nil, errors.New("поддерживается только SOCKS5 CONNECT")
+		return "", 0, nil, nil, errors.New("only SOCKS5 CONNECT is supported")
 	}
 	var host string
 	switch header[3] {
@@ -146,7 +146,7 @@ func negotiateSOCKS5(reader *bufio.Reader, writer io.Writer) (string, int, []byt
 		_, err = io.ReadFull(reader, value)
 		host = net.IP(value).String()
 	default:
-		err = fmt.Errorf("неподдерживаемый SOCKS5 address type: %d", header[3])
+		err = fmt.Errorf("unsupported SOCKS5 address type: %d", header[3])
 	}
 	if err != nil {
 		return "", 0, nil, nil, err
@@ -177,7 +177,7 @@ func negotiateSOCKS4(reader *bufio.Reader, writer io.Writer) (string, int, []byt
 		return "", 0, nil, nil, err
 	}
 	if command != 1 {
-		return "", 0, nil, nil, errors.New("поддерживается только SOCKS4 CONNECT")
+		return "", 0, nil, nil, errors.New("only SOCKS4 CONNECT is supported")
 	}
 	host := net.IP(ip).String()
 	if ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] != 0 {

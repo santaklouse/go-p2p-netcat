@@ -63,8 +63,8 @@ type options struct {
 func NewRoot() *cobra.Command {
 	opts := &options{}
 	root := &cobra.Command{
-		Use:           "p2p-nc [опции] [PeerId|multiaddr] [логический-порт]",
-		Short:         "Netcat-подобный P2P-клиент на libp2p/IPFS",
+		Use:           "p2p-nc [options] [PeerId|multiaddr] [logical-port]",
+		Short:         "A netcat-like P2P client built on libp2p/IPFS",
 		Version:       Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -81,19 +81,19 @@ func NewRoot() *cobra.Command {
 		},
 	}
 	flags := root.Flags()
-	flags.BoolVarP(&opts.listen, "listen", "l", false, "режим сервера")
-	flags.BoolVarP(&opts.keepOpen, "keep-open", "k", false, "продолжать принимать подключения")
-	flags.IntVarP(&opts.timeout, "timeout", "w", 60, "таймаут поиска/подключения в секундах")
-	flags.IntVar(&opts.quitDelay, "quit-delay", 0, "задержка закрытия после EOF stdin в секундах")
-	flags.StringVarP(&opts.destination, "destination", "d", "", "адрес назначения TCP forwarding на сервере")
-	flags.IntVarP(&opts.port, "port", "p", 0, "порт назначения с -l или локальный listen-порт клиента")
-	flags.BoolVarP(&opts.quiet, "quiet", "q", false, "не выводить диагностику")
-	flags.BoolVarP(&opts.socks, "socks", "S", false, "SOCKS4/4a/5 server на удалённой стороне")
-	flags.BoolVarP(&opts.tor, "tor", "T", false, "подключаться к relay через Tor/torsocks")
-	flags.BoolVarP(&opts.interactive, "interactive", "i", false, "интерактивный PTY login shell")
-	flags.BoolVarP(&opts.zero, "zero", "z", false, "только проверить соединение")
-	flags.StringVarP(&opts.exec, "exec", "e", "", "подключить серверный поток к shell-команде")
-	flags.BoolVarP(&opts.udp, "udp", "u", false, "UDP-режим (не поддерживается)")
+	flags.BoolVarP(&opts.listen, "listen", "l", false, "listen for incoming connections")
+	flags.BoolVarP(&opts.keepOpen, "keep-open", "k", false, "keep accepting connections")
+	flags.IntVarP(&opts.timeout, "timeout", "w", 60, "discovery and connection timeout in seconds")
+	flags.IntVar(&opts.quitDelay, "quit-delay", 0, "delay closing after stdin EOF, in seconds")
+	flags.StringVarP(&opts.destination, "destination", "d", "", "server-side TCP forwarding destination")
+	flags.IntVarP(&opts.port, "port", "p", 0, "destination port with -l or client local listen port")
+	flags.BoolVarP(&opts.quiet, "quiet", "q", false, "suppress diagnostics")
+	flags.BoolVarP(&opts.socks, "socks", "S", false, "run a SOCKS4/4a/5 server on the remote side")
+	flags.BoolVarP(&opts.tor, "tor", "T", false, "connect to a relay through Tor/torsocks")
+	flags.BoolVarP(&opts.interactive, "interactive", "i", false, "run an interactive PTY login shell")
+	flags.BoolVarP(&opts.zero, "zero", "z", false, "check connectivity without transferring data")
+	flags.StringVarP(&opts.exec, "exec", "e", "", "attach the server stream to a shell command")
+	flags.BoolVarP(&opts.udp, "udp", "u", false, "UDP mode (not supported)")
 	addNodeFlags(root, opts)
 	root.AddCommand(newIDCommand(), newTokenCommand(), newRelayCommand())
 	root.InitDefaultVersionFlag()
@@ -105,72 +105,72 @@ func NewRoot() *cobra.Command {
 
 func addNodeFlags(command *cobra.Command, opts *options) {
 	flags := command.Flags()
-	flags.IntVar(&opts.transportPort, "transport-port", 0, "локальный TCP/UDP-порт libp2p")
-	flags.BoolVarP(&opts.ipv4, "ipv4", "4", false, "слушать только IPv4")
-	flags.BoolVarP(&opts.ipv6, "ipv6", "6", false, "слушать только IPv6")
-	flags.StringVarP(&opts.identity, "identity", "I", "", "файл постоянного приватного ключа")
-	flags.StringSliceVar(&opts.relays, "relay", nil, "Circuit Relay v2 multiaddr; можно повторять")
-	flags.StringSliceVar(&opts.bootstrap, "bootstrap", nil, "заменить стандартные IPFS bootstrap-узлы")
-	flags.StringSliceVar(&opts.announce, "announce", nil, "публичный объявляемый multiaddr")
-	flags.BoolVar(&opts.noDHT, "no-dht", false, "отключить IPFS Amino DHT")
-	flags.BoolVar(&opts.noMDNS, "no-mdns", false, "отключить mDNS")
-	flags.BoolVar(&opts.noPubsub, "no-pubsub", false, "отключить PubSub discovery")
-	flags.BoolVar(&opts.noQUIC, "no-quic", false, "отключить QUIC")
-	flags.BoolVar(&opts.noWebRTC, "no-webrtc", false, "отключить WebRTC-direct и native Nostr/WebTorrent WebRTC")
-	flags.StringVar(&opts.pairingToken, "pairing-token", "", "приватный pairing token pnc1_...")
-	flags.StringVar(&opts.pairingTokenFile, "pairing-token-file", "", "прочитать pairing token из файла")
-	flags.StringVar(&opts.bind, "bind", "127.0.0.1", "локальный адрес для -p forwarding")
-	flags.BoolVar(&opts.json, "json", false, "выводить сведения об узле как JSON в stderr")
-	flags.BoolVarP(&opts.verbose, "verbose", "v", false, "подробная диагностика")
+	flags.IntVar(&opts.transportPort, "transport-port", 0, "local libp2p TCP/UDP port")
+	flags.BoolVarP(&opts.ipv4, "ipv4", "4", false, "listen on IPv4 only")
+	flags.BoolVarP(&opts.ipv6, "ipv6", "6", false, "listen on IPv6 only")
+	flags.StringVarP(&opts.identity, "identity", "I", "", "persistent private key file")
+	flags.StringSliceVar(&opts.relays, "relay", nil, "Circuit Relay v2 multiaddr; may be repeated")
+	flags.StringSliceVar(&opts.bootstrap, "bootstrap", nil, "replace the default IPFS bootstrap peers")
+	flags.StringSliceVar(&opts.announce, "announce", nil, "public multiaddr to announce")
+	flags.BoolVar(&opts.noDHT, "no-dht", false, "disable the IPFS Amino DHT")
+	flags.BoolVar(&opts.noMDNS, "no-mdns", false, "disable mDNS")
+	flags.BoolVar(&opts.noPubsub, "no-pubsub", false, "disable PubSub discovery")
+	flags.BoolVar(&opts.noQUIC, "no-quic", false, "disable QUIC")
+	flags.BoolVar(&opts.noWebRTC, "no-webrtc", false, "disable WebRTC Direct and native Nostr/WebTorrent WebRTC")
+	flags.StringVar(&opts.pairingToken, "pairing-token", "", "private pnc1_... pairing token")
+	flags.StringVar(&opts.pairingTokenFile, "pairing-token-file", "", "read a pairing token from a file")
+	flags.StringVar(&opts.bind, "bind", "127.0.0.1", "local bind address for -p forwarding")
+	flags.BoolVar(&opts.json, "json", false, "write node information as JSON to stderr")
+	flags.BoolVarP(&opts.verbose, "verbose", "v", false, "enable verbose diagnostics")
 }
 
 func validateOptions(command *cobra.Command, opts *options, args []string) error {
 	if opts.timeout <= 0 {
-		return errors.New("-w/--timeout должен быть больше нуля")
+		return errors.New("-w/--timeout must be greater than zero")
 	}
 	if opts.quitDelay < 0 || opts.transportPort < 0 || opts.transportPort > 65535 {
-		return errors.New("порты и задержки не могут быть отрицательными")
+		return errors.New("ports and delays cannot be negative")
 	}
 	if opts.port < 0 || opts.port > 65535 || (command.Flags().Changed("port") && opts.port == 0) {
-		return errors.New("-p/--port должен быть от 1 до 65535")
+		return errors.New("-p/--port must be between 1 and 65535")
 	}
 	if opts.ipv4 && opts.ipv6 {
-		return errors.New("опции -4 и -6 нельзя использовать одновременно")
+		return errors.New("-4 and -6 cannot be used together")
 	}
 	if opts.udp {
-		return errors.New("-u пока не поддерживается: протокол передаёт надёжный двунаправленный поток")
+		return errors.New("-u is not supported: the protocol carries a reliable bidirectional byte stream")
 	}
 	if opts.exec != "" && !opts.listen {
-		return errors.New("-e доступна только вместе с -l")
+		return errors.New("-e is available only with -l")
 	}
 	if opts.destination != "" && (!opts.listen || opts.port == 0) {
-		return errors.New("-d доступна только вместе с -l -p <порт>")
+		return errors.New("-d is available only with -l -p <port>")
 	}
 	if opts.socks && !opts.listen {
-		return errors.New("-S доступна только вместе с -l")
+		return errors.New("-S is available only with -l")
 	}
 	if opts.socks && (opts.destination != "" || opts.port != 0) {
-		return errors.New("-S несовместима с -d/-p на сервере")
+		return errors.New("-S cannot be combined with server-side -d/-p")
 	}
 	if opts.interactive && (opts.exec != "" || opts.socks) {
-		return errors.New("-i несовместима с -e и -S")
+		return errors.New("-i cannot be combined with -e or -S")
 	}
 	if !opts.listen && opts.port != 0 && (opts.interactive || opts.zero) {
-		return errors.New("клиентская -p несовместима с -i и -z")
+		return errors.New("client-side -p cannot be combined with -i or -z")
 	}
 	if opts.tor && opts.listen {
-		return errors.New("-T поддерживается только в клиентском режиме")
+		return errors.New("-T is supported only in client mode")
 	}
 	if opts.tor && len(opts.relays) == 0 {
-		return errors.New("-T требует явный --relay")
+		return errors.New("-T requires an explicit --relay")
 	}
 	for _, relay := range opts.relays {
 		if opts.tor && strings.Contains(relay, "/udp/") {
-			return errors.New("Tor не переносит QUIC/UDP; используйте TCP/WS/WSS relay")
+			return errors.New("Tor cannot carry QUIC/UDP; use a TCP/WS/WSS relay")
 		}
 	}
 	if opts.listen && len(args) > 1 {
-		return errors.New("в режиме -l укажите только логический порт: p2p-nc -l 8080")
+		return errors.New("listener mode accepts only a logical port: p2p-nc -l 8080")
 	}
 	return nil
 }
@@ -248,11 +248,11 @@ func runListener(ctx context.Context, opts *options, args []string) error {
 				accepted = true
 				acceptedMu.Unlock()
 			}
-			diagnostic(opts, "peer %s подключен к логическому порту %d", remote, service)
+			diagnostic(opts, "peer %s connected to logical port %d", remote, service)
 			sessionErr := runServerSession(ctx, stream, opts)
 			if persistent {
 				if sessionErr != nil {
-					diagnostic(opts, "сеанс завершён с ошибкой: %v", sessionErr)
+					diagnostic(opts, "session ended with an error: %v", sessionErr)
 				}
 				return
 			}
@@ -274,16 +274,16 @@ func runListener(ctx context.Context, opts *options, args []string) error {
 			},
 		)
 		if err != nil {
-			diagnostic(opts, "native WebRTC signaling не запущен: %v", err)
+			diagnostic(opts, "native WebRTC signaling did not start: %v", err)
 		} else {
 			defer nativeListener.Close()
-			diagnostic(opts, "native WebRTC Nostr/WebTorrent signaling запущен")
+			diagnostic(opts, "native WebRTC Nostr/WebTorrent signaling started")
 		}
 	}
-	printNodeInfo(opts, node, fmt.Sprintf("слушатель:%d", service))
-	diagnostic(opts, "постоянный ключ: %s", identityPath)
+	printNodeInfo(opts, node, fmt.Sprintf("listener:%d", service))
+	diagnostic(opts, "persistent key: %s", identityPath)
 	if token != nil {
-		diagnostic(opts, "приватный pairing-token режим включён")
+		diagnostic(opts, "private pairing-token mode enabled")
 	}
 	if persistent {
 		<-ctx.Done()
@@ -309,7 +309,7 @@ func runClient(ctx context.Context, opts *options, args []string) error {
 		target = token.PeerID.String()
 	}
 	if target == "" {
-		return errors.New("не указан PeerId; пример: p2p-nc 12D3KooW... 8080")
+		return errors.New("PeerId is required; example: p2p-nc 12D3KooW... 8080")
 	}
 	service := p2pnode.DefaultService
 	if len(args) == 2 {
@@ -361,7 +361,7 @@ func runClient(ctx context.Context, opts *options, args []string) error {
 		return stream, nil
 	}
 	if opts.verbose {
-		printNodeInfo(opts, node, "клиент")
+		printNodeInfo(opts, node, "client")
 	}
 	if opts.port != 0 {
 		listener, err := session.StartLocalForward(ctx, opts.bind, opts.port, openStream, func(value error) {
@@ -371,17 +371,17 @@ func runClient(ctx context.Context, opts *options, args []string) error {
 			return err
 		}
 		defer listener.Close()
-		diagnostic(opts, "локальный TCP %s -> %s:%d", listener.Addr(), target, service)
+		diagnostic(opts, "local TCP %s -> %s:%d", listener.Addr(), target, service)
 		<-ctx.Done()
 		return nil
 	}
 	stream, err := openStream(ctx)
 	if err != nil {
-		return fmt.Errorf("ни один маршрут не установил соединение: %w", err)
+		return fmt.Errorf("no route established a connection: %w", err)
 	}
 	defer stream.Close()
 	if opts.verbose || opts.zero {
-		diagnostic(opts, "соединение с %s:%d установлено", target, service)
+		diagnostic(opts, "connected to %s:%d", target, service)
 	}
 	if opts.zero {
 		return stream.Close()
@@ -515,14 +515,14 @@ func printNodeInfo(opts *options, node *p2pnode.Node, label string) {
 	}
 	diagnostic(opts, "%s PeerId: %s", label, payload.PeerID)
 	for _, address := range payload.Addresses {
-		diagnostic(opts, "адрес: %s", address)
+		diagnostic(opts, "address: %s", address)
 	}
 }
 
 func parseService(text string) (uint16, error) {
 	value, err := strconv.ParseUint(text, 10, 16)
 	if err != nil || value == 0 {
-		return 0, fmt.Errorf("логический порт должен быть целым числом от 1 до 65535: %s", text)
+		return 0, fmt.Errorf("logical port must be an integer between 1 and 65535: %s", text)
 	}
 	return uint16(value), nil
 }
@@ -548,7 +548,7 @@ func loadToken(opts *options) (*pairing.Token, error) {
 	var selected string
 	for label, value := range sources {
 		if selected != "" && selected != value {
-			return nil, fmt.Errorf("pairing token различается между источниками, включая %s", label)
+			return nil, fmt.Errorf("pairing token differs between sources, including %s", label)
 		}
 		selected = value
 	}
@@ -564,10 +564,10 @@ func loadToken(opts *options) (*pairing.Token, error) {
 
 func validateTokenFor(token *pairing.Token, expected peer.ID, service uint16) error {
 	if token.PeerID != expected {
-		return fmt.Errorf("pairing token принадлежит PeerId %s, а не %s", token.PeerID, expected)
+		return fmt.Errorf("pairing token belongs to PeerId %s, not %s", token.PeerID, expected)
 	}
 	if token.Service != service {
-		return fmt.Errorf("pairing token принадлежит логическому порту %d, а не %d", token.Service, service)
+		return fmt.Errorf("pairing token belongs to logical port %d, not %d", token.Service, service)
 	}
 	return token.Validate(time.Now())
 }
@@ -582,7 +582,7 @@ func peerIDFromTarget(target string) (peer.ID, error) {
 	}
 	info, err := peer.AddrInfoFromP2pAddr(address)
 	if err != nil {
-		return "", errors.New("полный multiaddr должен содержать /p2p/PeerId")
+		return "", errors.New("full multiaddr must contain /p2p/PeerId")
 	}
 	return info.ID, nil
 }
@@ -643,7 +643,7 @@ func newIDCommand() *cobra.Command {
 	var path string
 	command := &cobra.Command{
 		Use:   "id",
-		Short: "показать постоянный PeerId",
+		Short: "show the persistent PeerId",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			if path == "" {
@@ -661,7 +661,7 @@ func newIDCommand() *cobra.Command {
 			return nil
 		},
 	}
-	command.Flags().StringVarP(&path, "identity", "I", "", "файл постоянного приватного ключа")
+	command.Flags().StringVarP(&path, "identity", "I", "", "persistent private key file")
 	return command
 }
 
@@ -670,8 +670,8 @@ func newTokenCommand() *cobra.Command {
 	var relays []string
 	var expiresIn int
 	command := &cobra.Command{
-		Use:   "token [логический-порт]",
-		Short: "создать приватный pairing token",
+		Use:   "token [logical-port]",
+		Short: "create a private pairing token",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
 			if path == "" {
@@ -702,7 +702,7 @@ func newTokenCommand() *cobra.Command {
 			}
 			var expires *uint64
 			if expiresIn < 0 || (command.Flags().Changed("expires-in") && expiresIn == 0) {
-				return errors.New("--expires-in должен быть больше нуля")
+				return errors.New("--expires-in must be greater than zero")
 			}
 			if expiresIn > 0 {
 				value := uint64(time.Now().Unix() + int64(expiresIn))
@@ -720,9 +720,9 @@ func newTokenCommand() *cobra.Command {
 			return nil
 		},
 	}
-	command.Flags().StringVarP(&path, "identity", "I", "", "файл постоянного приватного ключа")
-	command.Flags().StringSliceVar(&relays, "relay", nil, "добавить relay hint")
-	command.Flags().IntVar(&expiresIn, "expires-in", 0, "срок действия token в секундах")
+	command.Flags().StringVarP(&path, "identity", "I", "", "persistent private key file")
+	command.Flags().StringSliceVar(&relays, "relay", nil, "add a relay hint")
+	command.Flags().IntVar(&expiresIn, "expires-in", 0, "token lifetime in seconds")
 	return command
 }
 
@@ -744,14 +744,14 @@ func newRelayCommand() *cobra.Command {
 	opts := &relayOptions{}
 	command := &cobra.Command{
 		Use:   "relay",
-		Short: "запустить Circuit Relay v2",
+		Short: "run a Circuit Relay v2 server",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			if opts.ipv4 && opts.ipv6 {
-				return errors.New("-4 и -6 нельзя использовать одновременно")
+				return errors.New("-4 and -6 cannot be used together")
 			}
 			if opts.localPort < 0 || opts.localPort > 65535 || opts.websocketPort < 1 || opts.websocketPort > 65535 {
-				return errors.New("некорректный relay port")
+				return errors.New("invalid relay port")
 			}
 			path := opts.identity
 			if path == "" {
@@ -780,22 +780,22 @@ func newRelayCommand() *cobra.Command {
 			defer relay.Stop()
 			common := &options{json: opts.json, verbose: opts.verbose}
 			printNodeInfo(common, relay.Node, "relay")
-			diagnostic(common, "relay готов; постоянный ключ: %s", path)
+			diagnostic(common, "relay ready; persistent key: %s", path)
 			<-command.Context().Done()
 			return nil
 		},
 	}
 	flags := command.Flags()
-	flags.IntVarP(&opts.localPort, "local-port", "p", 9090, "публичный TCP/UDP-порт relay")
-	flags.IntVar(&opts.websocketPort, "websocket-port", 9091, "WebSocket-порт")
-	flags.BoolVarP(&opts.ipv4, "ipv4", "4", false, "только IPv4")
-	flags.BoolVarP(&opts.ipv6, "ipv6", "6", false, "только IPv6")
-	flags.StringVarP(&opts.identity, "identity", "I", "", "файл постоянного ключа")
-	flags.StringSliceVar(&opts.announce, "announce", nil, "публичный relay multiaddr")
-	flags.BoolVar(&opts.noMDNS, "no-mdns", false, "отключить mDNS")
-	flags.BoolVar(&opts.noPubsub, "no-pubsub", false, "отключить PubSub discovery")
-	flags.BoolVar(&opts.noQUIC, "no-quic", false, "отключить QUIC")
-	flags.BoolVar(&opts.json, "json", false, "JSON в stderr")
-	flags.BoolVarP(&opts.verbose, "verbose", "v", false, "подробная диагностика")
+	flags.IntVarP(&opts.localPort, "local-port", "p", 9090, "public relay TCP/UDP port")
+	flags.IntVar(&opts.websocketPort, "websocket-port", 9091, "WebSocket port")
+	flags.BoolVarP(&opts.ipv4, "ipv4", "4", false, "IPv4 only")
+	flags.BoolVarP(&opts.ipv6, "ipv6", "6", false, "IPv6 only")
+	flags.StringVarP(&opts.identity, "identity", "I", "", "persistent key file")
+	flags.StringSliceVar(&opts.announce, "announce", nil, "public relay multiaddr")
+	flags.BoolVar(&opts.noMDNS, "no-mdns", false, "disable mDNS")
+	flags.BoolVar(&opts.noPubsub, "no-pubsub", false, "disable PubSub discovery")
+	flags.BoolVar(&opts.noQUIC, "no-quic", false, "disable QUIC")
+	flags.BoolVar(&opts.json, "json", false, "write JSON to stderr")
+	flags.BoolVarP(&opts.verbose, "verbose", "v", false, "enable verbose diagnostics")
 	return command
 }

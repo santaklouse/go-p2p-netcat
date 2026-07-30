@@ -35,19 +35,19 @@ func LoadOrCreate(path string) (crypto.PrivKey, error) {
 	if err == nil {
 		key, decodeErr := crypto.UnmarshalPrivateKey(data)
 		if decodeErr != nil {
-			return nil, fmt.Errorf("прочитать приватный ключ %s: %w", absolute, decodeErr)
+			return nil, fmt.Errorf("read private key %s: %w", absolute, decodeErr)
 		}
 		return key, nil
 	}
 	if !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("прочитать приватный ключ %s: %w", absolute, err)
+		return nil, fmt.Errorf("read private key %s: %w", absolute, err)
 	}
 	if err := os.MkdirAll(filepath.Dir(absolute), 0o700); err != nil {
-		return nil, fmt.Errorf("создать каталог identity: %w", err)
+		return nil, fmt.Errorf("create identity directory: %w", err)
 	}
 	key, _, err := crypto.GenerateEd25519Key(rand.Reader)
 	if err != nil {
-		return nil, fmt.Errorf("создать Ed25519 identity: %w", err)
+		return nil, fmt.Errorf("create Ed25519 identity: %w", err)
 	}
 	encoded, err := crypto.MarshalPrivateKey(key)
 	if err != nil {
@@ -58,11 +58,11 @@ func LoadOrCreate(path string) (crypto.PrivKey, error) {
 		if errors.Is(err, os.ErrExist) {
 			return LoadOrCreate(absolute)
 		}
-		return nil, fmt.Errorf("создать identity %s: %w", absolute, err)
+		return nil, fmt.Errorf("create identity %s: %w", absolute, err)
 	}
 	if _, err := file.Write(encoded); err != nil {
 		_ = file.Close()
-		return nil, fmt.Errorf("записать identity %s: %w", absolute, err)
+		return nil, fmt.Errorf("write identity %s: %w", absolute, err)
 	}
 	if err := file.Close(); err != nil {
 		return nil, err

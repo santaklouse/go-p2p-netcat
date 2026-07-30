@@ -47,7 +47,7 @@ export function validateService (value = DEFAULT_SERVICE) {
   const service = Number(value)
 
   if (!Number.isInteger(service) || service < 1 || service > 65535) {
-    throw new Error(`Логический порт должен быть целым числом от 1 до 65535, получено: ${value}`)
+    throw new Error(`Logical port must be an integer between 1 and 65535; got: ${value}`)
   }
 
   return service
@@ -112,13 +112,13 @@ export class PtyFrameDecoder {
 
 export function normalizePeerId (value) {
   const text = String(value ?? '').trim()
-  if (text.length === 0) throw new Error('PeerId не указан')
+  if (text.length === 0) throw new Error('PeerId is required')
   return peerIdFromString(text).toString()
 }
 
 export function normalizeMultiaddr (value) {
   const text = String(value ?? '').trim().replace(/\/$/, '')
-  if (text.length === 0) throw new Error('Multiaddr не указан')
+  if (text.length === 0) throw new Error('Multiaddr is required')
   return multiaddr(text).toString().replace(/\/$/, '')
 }
 
@@ -139,13 +139,13 @@ export function normalizeRelayAddress (value, {
   const relay = normalizeMultiaddr(value)
 
   if (!/\/p2p\/[^/]+(?:\/|$)/.test(relay)) {
-    throw new Error(`Адрес relay должен содержать /p2p/PeerId: ${value}`)
+    throw new Error(`Relay address must contain /p2p/PeerId: ${value}`)
   }
   if (requireWebSocket && !isWebSocketAddress(relay)) {
-    throw new Error('Браузеру нужен WebSocket relay-адрес с /ws или /wss')
+    throw new Error('The browser requires a WebSocket relay address with /ws or /wss')
   }
   if (secureContext && !isSecureWebSocketAddress(relay)) {
-    throw new Error('HTTPS-страница может подключаться только к защищённому /wss relay')
+    throw new Error('An HTTPS page can connect only to a secure /wss relay')
   }
 
   return relay

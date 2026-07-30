@@ -336,13 +336,13 @@ func Connect(
 			for _, signaling := range sessions {
 				_ = signaling.Close()
 			}
-			return nil, fmt.Errorf("native WebRTC не установил соединение: %w", attemptCtx.Err())
+			return nil, fmt.Errorf("native WebRTC did not establish a connection: %w", attemptCtx.Err())
 		}
 	}
 	for _, signaling := range sessions {
 		_ = signaling.Close()
 	}
-	return nil, fmt.Errorf("native WebRTC signaling завершился: %w", errors.Join(failures...))
+	return nil, fmt.Errorf("native WebRTC signaling failed: %w", errors.Join(failures...))
 }
 
 func connectWithSession(
@@ -420,7 +420,7 @@ connected:
 	case <-p2p.open:
 	case <-p2p.closed:
 		_ = closePeer()
-		return nil, errors.New("native WebRTC data channel закрылся до аутентификации")
+		return nil, errors.New("native WebRTC data channel closed before authentication")
 	case <-ctx.Done():
 		_ = closePeer()
 		return nil, ctx.Err()
@@ -439,13 +439,13 @@ connected:
 		case frame := <-p2p.frames:
 			if frame.Type != FrameAuthResponse {
 				_ = closePeer()
-				return nil, fmt.Errorf("ожидался WebRTC auth response, получен frame %d", frame.Type)
+				return nil, fmt.Errorf("expected a WebRTC auth response, received frame %d", frame.Type)
 			}
 			ok, err := VerifyAuthResponse(frame.Payload, expected, service, challenge)
 			if err != nil || !ok {
 				_ = closePeer()
 				if err == nil {
-					err = errors.New("native WebRTC PeerId authentication не прошла")
+					err = errors.New("native WebRTC PeerId authentication failed")
 				}
 				return nil, err
 			}
@@ -505,7 +505,7 @@ func superviseClientConnection(
 		}
 		cancel()
 		if next == nil || !link.Attach(next) {
-			stream.fail(errors.New("native WebRTC peer не восстановился за 120 секунд"), true)
+			stream.fail(errors.New("native WebRTC peer did not reconnect within 120 seconds"), true)
 			_ = link.Close()
 			return
 		}
@@ -568,7 +568,7 @@ func StartListener(
 	onStream func(*Stream, string),
 ) (*Listener, error) {
 	if privateKey == nil {
-		return nil, errors.New("libp2p private key не задан")
+		return nil, errors.New("libp2p private key is required")
 	}
 	id, err := peer.IDFromPrivateKey(privateKey)
 	if err != nil {
@@ -672,24 +672,24 @@ func answerNativeOffer(
 				response, signErr := SignAuthResponse(privateKey, service, frame.Payload)
 				if signErr != nil || p2p.Send(Frame{Type: FrameAuthResponse, Payload: response}) != nil {
 					_ = closePeer()
-					return nil, errors.New("отправить native WebRTC auth response")
+					return nil, errors.New("send native WebRTC auth response")
 				}
 				challengeAnswered = true
 			case FrameAuthReady:
 				if !challengeAnswered {
 					_ = closePeer()
-					return nil, errors.New("native WebRTC auth ready получен до challenge")
+					return nil, errors.New("native WebRTC auth ready was received before the challenge")
 				}
 				return p2p, nil
 			default:
 				_ = closePeer()
-				return nil, fmt.Errorf("неожиданный native WebRTC auth frame: %d", frame.Type)
+				return nil, fmt.Errorf("unexpected native WebRTC auth frame: %d", frame.Type)
 			}
 		case <-attemptCtx.Done():
 			_ = closePeer()
 			return nil, attemptCtx.Err()
 		case <-p2p.closed:
-			return nil, errors.New("native WebRTC peer закрылся во время аутентификации")
+			return nil, errors.New("native WebRTC peer closed during authentication")
 		}
 	}
 }
@@ -757,7 +757,7 @@ func (l *Listener) watch(remote string, entry *listenerStream, p2p *nativePeer) 
 		current := l.streams[remote]
 		if current == entry && entry.peer == nil {
 			delete(l.streams, remote)
-			entry.stream.fail(errors.New("native WebRTC peer не восстановился за 120 секунд"), true)
+			entry.stream.fail(errors.New("native WebRTC peer did not reconnect within 120 seconds"), true)
 			_ = entry.link.Close()
 		}
 		l.mu.Unlock()

@@ -19,11 +19,11 @@ import (
 func PTYServer(ctx context.Context, stream Stream, verbose bool) error {
 	terminal, err := hostpty.New()
 	if err != nil {
-		return fmt.Errorf("создать Windows ConPTY: %w", err)
+		return fmt.Errorf("create Windows ConPTY: %w", err)
 	}
 	defer terminal.Close()
 	if err := terminal.Resize(80, 24); err != nil {
-		return fmt.Errorf("изменить размер Windows ConPTY: %w", err)
+		return fmt.Errorf("resize Windows ConPTY: %w", err)
 	}
 	shell := os.Getenv("SHELL")
 	if shell == "" {
@@ -31,10 +31,10 @@ func PTYServer(ctx context.Context, stream Stream, verbose bool) error {
 	}
 	command := terminal.CommandContext(ctx, shell)
 	if err := command.Start(); err != nil {
-		return fmt.Errorf("запустить Windows ConPTY shell: %w", err)
+		return fmt.Errorf("start Windows ConPTY shell: %w", err)
 	}
 	if verbose {
-		fmt.Fprintf(os.Stderr, "[p2p-nc] Windows ConPTY shell запущен, pid=%d: %s\n", command.Process.Pid, shell)
+		fmt.Fprintf(os.Stderr, "[p2p-nc] Windows ConPTY shell started, pid=%d: %s\n", command.Process.Pid, shell)
 	}
 
 	var writer sync.Mutex
@@ -82,7 +82,7 @@ func PTYServer(ctx context.Context, stream Stream, verbose bool) error {
 					return
 				}
 			default:
-				errorsCh <- fmt.Errorf("неизвестный PTY frame: %d", frame.Type)
+				errorsCh <- fmt.Errorf("unknown PTY frame: %d", frame.Type)
 				return
 			}
 		}
@@ -105,7 +105,7 @@ func PTYServer(ctx context.Context, stream Stream, verbose bool) error {
 func PTYClient(ctx context.Context, stream Stream) error {
 	fd := int(os.Stdin.Fd())
 	if !term.IsTerminal(fd) {
-		return errors.New("интерактивный режим -i требует TTY на stdin")
+		return errors.New("interactive mode -i requires a TTY on stdin")
 	}
 	previous, err := term.MakeRaw(fd)
 	if err != nil {

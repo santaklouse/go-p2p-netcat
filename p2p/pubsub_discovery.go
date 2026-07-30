@@ -132,7 +132,7 @@ func encodePubSubPeerRecord(h interface {
 }) ([]byte, error) {
 	publicKey := h.Peerstore().PubKey(h.ID())
 	if publicKey == nil {
-		return nil, errors.New("локальный PeerId не содержит public key")
+		return nil, errors.New("local PeerId does not contain a public key")
 	}
 	publicBytes, err := crypto.MarshalPublicKey(publicKey)
 	if err != nil {
@@ -148,7 +148,7 @@ func encodePubSubPeerRecord(h interface {
 		output = protowire.AppendBytes(output, address.Bytes())
 	}
 	if len(output) > maxPubSubRecordBytes {
-		return nil, fmt.Errorf("GossipSub peer record превышает %d байт", maxPubSubRecordBytes)
+		return nil, fmt.Errorf("GossipSub peer record exceeds %d bytes", maxPubSubRecordBytes)
 	}
 	return output, nil
 }
@@ -156,7 +156,7 @@ func encodePubSubPeerRecord(h interface {
 func decodePubSubPeerRecord(input []byte) (decodedPubSubPeerRecord, error) {
 	var result decodedPubSubPeerRecord
 	if len(input) == 0 || len(input) > maxPubSubRecordBytes {
-		return result, errors.New("некорректный размер GossipSub peer record")
+		return result, errors.New("invalid GossipSub peer record size")
 	}
 	var publicBytes []byte
 	for len(input) > 0 {
@@ -166,7 +166,7 @@ func decodePubSubPeerRecord(input []byte) (decodedPubSubPeerRecord, error) {
 		}
 		input = input[count:]
 		if wireType != protowire.BytesType {
-			return result, errors.New("GossipSub peer record содержит поле неправильного типа")
+			return result, errors.New("GossipSub peer record contains a field with the wrong wire type")
 		}
 		value, valueCount := protowire.ConsumeBytes(input)
 		if valueCount < 0 {
@@ -178,7 +178,7 @@ func decodePubSubPeerRecord(input []byte) (decodedPubSubPeerRecord, error) {
 			publicBytes = append([]byte(nil), value...)
 		case 2:
 			if len(result.addresses) >= maxPubSubAddresses {
-				return result, errors.New("GossipSub peer record содержит слишком много адресов")
+				return result, errors.New("GossipSub peer record contains too many addresses")
 			}
 			address, err := ma.NewMultiaddrBytes(value)
 			if err != nil {
@@ -188,7 +188,7 @@ func decodePubSubPeerRecord(input []byte) (decodedPubSubPeerRecord, error) {
 		}
 	}
 	if len(publicBytes) == 0 {
-		return result, errors.New("GossipSub peer record не содержит public key")
+		return result, errors.New("GossipSub peer record does not contain a public key")
 	}
 	publicKey, err := crypto.UnmarshalPublicKey(publicBytes)
 	if err != nil {

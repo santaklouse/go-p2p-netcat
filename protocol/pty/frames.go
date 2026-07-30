@@ -20,7 +20,7 @@ type Frame struct {
 
 func WriteFrame(writer io.Writer, kind byte, data []byte) error {
 	if len(data) > MaxFrameLength {
-		return fmt.Errorf("PTY frame превышает %d байт", MaxFrameLength)
+		return fmt.Errorf("PTY frame exceeds %d bytes", MaxFrameLength)
 	}
 	header := [5]byte{kind}
 	binary.BigEndian.PutUint32(header[1:], uint32(len(data)))
@@ -37,11 +37,11 @@ func ReadFrame(reader io.Reader) (Frame, error) {
 	}
 	length := binary.BigEndian.Uint32(header[1:])
 	if length > MaxFrameLength {
-		return Frame{}, fmt.Errorf("PTY frame превышает %d байт", MaxFrameLength)
+		return Frame{}, fmt.Errorf("PTY frame exceeds %d bytes", MaxFrameLength)
 	}
 	data := make([]byte, length)
 	if _, err := io.ReadFull(reader, data); err != nil {
-		return Frame{}, errors.New("PTY stream завершился внутри frame")
+		return Frame{}, errors.New("PTY stream ended inside a frame")
 	}
 	return Frame{Type: header[0], Data: data}, nil
 }
@@ -61,7 +61,7 @@ func EncodeResize(columns, rows uint16) []byte {
 
 func DecodeResize(value []byte) (uint16, uint16, error) {
 	if len(value) != 4 {
-		return 0, 0, errors.New("PTY resize payload должен содержать 4 байта")
+		return 0, 0, errors.New("PTY resize payload must contain 4 bytes")
 	}
 	columns := binary.BigEndian.Uint16(value[0:2])
 	rows := binary.BigEndian.Uint16(value[2:4])

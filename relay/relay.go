@@ -35,7 +35,7 @@ type Handle struct {
 
 func Start(ctx context.Context, options Options) (*Handle, error) {
 	if options.LocalPort < 0 || options.LocalPort > 65535 {
-		return nil, errors.New("relay local port должен быть от 0 до 65535")
+		return nil, errors.New("relay local port must be between 0 and 65535")
 	}
 	if options.DisableWebsocket {
 		options.WebsocketPort = 0
@@ -43,10 +43,10 @@ func Start(ctx context.Context, options Options) (*Handle, error) {
 		options.WebsocketPort = 9091
 	}
 	if options.WebsocketPort < 0 || options.WebsocketPort > 65535 {
-		return nil, errors.New("relay WebSocket port должен быть от 1 до 65535")
+		return nil, errors.New("relay WebSocket port must be between 1 and 65535")
 	}
 	if options.IPVersion != 0 && options.IPVersion != 4 && options.IPVersion != 6 {
-		return nil, errors.New("relay IP version должна быть 4, 6 или 0")
+		return nil, errors.New("relay IP version must be 4, 6, or 0")
 	}
 	key := options.PrivateKey
 	path := options.IdentityPath

@@ -26,11 +26,11 @@ func PTYServer(ctx context.Context, stream Stream, verbose bool) error {
 	command := exec.CommandContext(ctx, shell, "-l")
 	terminal, err := pty.StartWithSize(command, &pty.Winsize{Cols: 80, Rows: 24})
 	if err != nil {
-		return fmt.Errorf("запустить PTY: %w", err)
+		return fmt.Errorf("start PTY: %w", err)
 	}
 	defer terminal.Close()
 	if verbose {
-		fmt.Fprintf(os.Stderr, "[p2p-nc] PTY login shell запущен, pid=%d: %s\n", command.Process.Pid, shell)
+		fmt.Fprintf(os.Stderr, "[p2p-nc] PTY login shell started, pid=%d: %s\n", command.Process.Pid, shell)
 	}
 	var writer sync.Mutex
 	errorsCh := make(chan error, 2)
@@ -74,7 +74,7 @@ func PTYServer(ctx context.Context, stream Stream, verbose bool) error {
 				}
 				_ = pty.Setsize(terminal, &pty.Winsize{Cols: columns, Rows: rows})
 			default:
-				errorsCh <- fmt.Errorf("неизвестный PTY frame: %d", frame.Type)
+				errorsCh <- fmt.Errorf("unknown PTY frame: %d", frame.Type)
 				return
 			}
 		}
@@ -96,7 +96,7 @@ func PTYServer(ctx context.Context, stream Stream, verbose bool) error {
 func PTYClient(ctx context.Context, stream Stream) error {
 	fd := int(os.Stdin.Fd())
 	if !term.IsTerminal(fd) {
-		return errors.New("интерактивный режим -i требует TTY на stdin")
+		return errors.New("interactive mode -i requires a TTY on stdin")
 	}
 	previous, err := term.MakeRaw(fd)
 	if err != nil {

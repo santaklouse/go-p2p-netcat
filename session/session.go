@@ -67,7 +67,7 @@ func Bridge(ctx context.Context, stream Stream, input io.Reader, output io.Write
 			return ctx.Err()
 		case <-idleC:
 			_ = stream.Reset()
-			return fmt.Errorf("таймаут простоя %s", inactivity)
+			return fmt.Errorf("inactivity timeout after %s", inactivity)
 		case <-activity:
 			if idle != nil {
 				if !idle.Stop() {
@@ -107,7 +107,7 @@ func Exec(ctx context.Context, stream Stream, command string, verbose bool) erro
 		return err
 	}
 	if verbose {
-		fmt.Fprintf(os.Stderr, "[p2p-nc] запущена команда, pid=%d: %s\n", child.Process.Pid, command)
+		fmt.Fprintf(os.Stderr, "[p2p-nc] command started, pid=%d: %s\n", child.Process.Pid, command)
 	}
 	var writer sync.Mutex
 	copyOutput := func(source io.Reader) {
@@ -137,7 +137,7 @@ func Exec(ctx context.Context, stream Stream, command string, verbose bool) erro
 	_ = stdin.Close()
 	_ = stream.CloseWrite()
 	if verbose {
-		fmt.Fprintf(os.Stderr, "[p2p-nc] команда завершилась: %v\n", waitErr)
+		fmt.Fprintf(os.Stderr, "[p2p-nc] command exited: %v\n", waitErr)
 	}
 	return waitErr
 }

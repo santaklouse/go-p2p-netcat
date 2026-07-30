@@ -79,10 +79,10 @@ func ProtocolForService(service uint16) protocol.ID {
 
 func New(parent context.Context, cfg Config) (*Node, error) {
 	if cfg.PrivateKey == nil {
-		return nil, errors.New("private key не задан")
+		return nil, errors.New("private key is required")
 	}
 	if cfg.IPVersion != 0 && cfg.IPVersion != 4 && cfg.IPVersion != 6 {
-		return nil, errors.New("IP version должна быть 4, 6 или 0")
+		return nil, errors.New("IP version must be 4, 6, or 0")
 	}
 	ctx, cancel := context.WithCancel(parent)
 	options := []libp2p.Option{
@@ -161,7 +161,7 @@ func New(parent context.Context, cfg Config) (*Node, error) {
 	h, err := libp2p.New(options...)
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("создать libp2p host: %w", err)
+		return nil, fmt.Errorf("create libp2p host: %w", err)
 	}
 	relaySourceHost = h
 	node := &Node{Host: h, cancel: cancel, verbose: cfg.Verbose}
@@ -176,14 +176,14 @@ func New(parent context.Context, cfg Config) (*Node, error) {
 		err := h.Connect(connectCtx, relay)
 		connectCancel()
 		if err != nil && cfg.Verbose {
-			log.Printf("[p2p-nc] relay %s пока недоступен: %v", relay.ID, err)
+			log.Printf("[p2p-nc] relay %s is not available yet: %v", relay.ID, err)
 		}
 		if err == nil && cfg.DHTServer && !cfg.RelayServer {
 			reserveCtx, reserveCancel := context.WithTimeout(ctx, 15*time.Second)
 			_, reserveErr := circuitclient.Reserve(reserveCtx, h, relay)
 			reserveCancel()
 			if reserveErr != nil {
-				return fail(fmt.Errorf("зарезервировать Circuit Relay v2 %s: %w", relay.ID, reserveErr))
+				return fail(fmt.Errorf("reserve Circuit Relay v2 %s: %w", relay.ID, reserveErr))
 			}
 		}
 	}
@@ -199,7 +199,7 @@ func New(parent context.Context, cfg Config) (*Node, error) {
 		}
 		node.DHT, err = dht.New(h, dht.Mode(mode), dht.BootstrapPeers(bootstrappers...))
 		if err != nil {
-			return fail(fmt.Errorf("создать IPFS Amino DHT: %w", err))
+			return fail(fmt.Errorf("create IPFS Amino DHT: %w", err))
 		}
 		for _, bootstrap := range bootstrappers {
 			h.Peerstore().AddAddrs(bootstrap.ID, bootstrap.Addrs, peerstore.PermanentAddrTTL)
@@ -207,18 +207,18 @@ func New(parent context.Context, cfg Config) (*Node, error) {
 			connectErr := h.Connect(connectCtx, bootstrap)
 			connectCancel()
 			if connectErr != nil && cfg.Verbose {
-				log.Printf("[p2p-nc] bootstrap %s пока недоступен: %v", bootstrap.ID, connectErr)
+				log.Printf("[p2p-nc] bootstrap peer %s is not available yet: %v", bootstrap.ID, connectErr)
 			}
 		}
 		if err := node.DHT.Bootstrap(ctx); err != nil {
-			return fail(fmt.Errorf("запустить DHT bootstrap: %w", err))
+			return fail(fmt.Errorf("start DHT bootstrap: %w", err))
 		}
 	}
 
 	if cfg.EnableMDNS {
 		node.mdns = mdns.NewMdnsService(h, "", mdnsNotifee{ctx: ctx, host: h, verbose: cfg.Verbose})
 		if err := node.mdns.Start(); err != nil {
-			return fail(fmt.Errorf("запустить mDNS: %w", err))
+			return fail(fmt.Errorf("start mDNS: %w", err))
 		}
 	}
 	if cfg.EnablePubSub {
@@ -229,7 +229,7 @@ func New(parent context.Context, cfg Config) (*Node, error) {
 			cfg.RelayServer,
 			cfg.PubSubInterval,
 		); err != nil {
-			return fail(fmt.Errorf("запустить GossipSub discovery: %w", err))
+			return fail(fmt.Errorf("start GossipSub discovery: %w", err))
 		}
 	}
 	return node, nil
@@ -365,14 +365,14 @@ func (n *Node) resolve(ctx context.Context, target string, relays []string, toke
 		}
 		info, err := peer.AddrInfoFromP2pAddr(address)
 		if err != nil {
-			return "", errors.New("полный multiaddr должен содержать /p2p/PeerId")
+			return "", errors.New("full multiaddr must contain /p2p/PeerId")
 		}
 		n.Host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
 		return info.ID, nil
 	}
 	targetID, err := peer.Decode(target)
 	if err != nil {
-		return "", fmt.Errorf("некорректный PeerId %q: %w", target, err)
+		return "", fmt.Errorf("invalid PeerId %q: %w", target, err)
 	}
 	if len(relays) > 0 {
 		relayAddress, err := ma.NewMultiaddr(strings.TrimSuffix(relays[0], "/"))
@@ -382,7 +382,7 @@ func (n *Node) resolve(ctx context.Context, target string, relays []string, toke
 		circuit, _ := ma.NewMultiaddr("/p2p-circuit/p2p/" + targetID.String())
 		info, err := peer.AddrInfoFromP2pAddr(relayAddress.Encapsulate(circuit))
 		if err != nil {
-			return "", fmt.Errorf("построить relay-маршрут: %w", err)
+			return "", fmt.Errorf("build relay route: %w", err)
 		}
 		n.Host.Peerstore().AddAddrs(targetID, info.Addrs, peerstore.TempAddrTTL)
 		return targetID, nil
@@ -391,7 +391,7 @@ func (n *Node) resolve(ctx context.Context, target string, relays []string, toke
 		return targetID, nil
 	}
 	if n.DHT == nil {
-		return "", errors.New("PeerId не найден локально, а DHT отключена; укажите полный multiaddr или --relay")
+		return "", errors.New("PeerId was not found locally and the DHT is disabled; provide a full multiaddr or --relay")
 	}
 
 	var providerCIDs []cid.Cid
@@ -422,7 +422,7 @@ func (n *Node) resolve(ctx context.Context, target string, relays []string, toke
 			return targetID, nil
 		}
 	}
-	return "", fmt.Errorf("не удалось найти PeerId %s; укажите --relay или полный multiaddr", targetID)
+	return "", fmt.Errorf("could not find PeerId %s; provide --relay or a full multiaddr", targetID)
 }
 
 func (n *Node) Advertise(ctx context.Context, token *pairing.Token) {
@@ -446,7 +446,7 @@ func (n *Node) Advertise(ctx context.Context, token *pairing.Token) {
 				err := n.DHT.Provide(provideCtx, value, true)
 				cancel()
 				if err != nil && n.verbose {
-					log.Printf("[p2p-nc] DHT provider record пока не опубликована: %v", err)
+					log.Printf("[p2p-nc] DHT provider record has not been published yet: %v", err)
 				}
 			}
 			timer := time.NewTimer(interval)
@@ -507,11 +507,11 @@ func parseRelayInfos(values []string) ([]peer.AddrInfo, error) {
 	for _, value := range values {
 		address, err := ma.NewMultiaddr(strings.TrimSuffix(value, "/"))
 		if err != nil {
-			return nil, fmt.Errorf("некорректный relay multiaddr %q: %w", value, err)
+			return nil, fmt.Errorf("invalid relay multiaddr %q: %w", value, err)
 		}
 		info, err := peer.AddrInfoFromP2pAddr(address)
 		if err != nil {
-			return nil, fmt.Errorf("relay multiaddr должен содержать /p2p/PeerId: %s", value)
+			return nil, fmt.Errorf("relay multiaddr must contain /p2p/PeerId: %s", value)
 		}
 		result = append(result, *info)
 	}
@@ -524,10 +524,10 @@ func relayCircuitAddresses(values []string) ([]ma.Multiaddr, error) {
 	for _, value := range values {
 		address, err := ma.NewMultiaddr(strings.TrimSuffix(value, "/"))
 		if err != nil {
-			return nil, fmt.Errorf("некорректный relay multiaddr %q: %w", value, err)
+			return nil, fmt.Errorf("invalid relay multiaddr %q: %w", value, err)
 		}
 		if _, err := peer.AddrInfoFromP2pAddr(address); err != nil {
-			return nil, fmt.Errorf("relay multiaddr должен содержать /p2p/PeerId: %s", value)
+			return nil, fmt.Errorf("relay multiaddr must contain /p2p/PeerId: %s", value)
 		}
 		result = append(result, address.Encapsulate(circuit))
 	}

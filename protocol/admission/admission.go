@@ -66,14 +66,14 @@ func VerifyHello(token *pairing.Token, encoded []byte, now time.Time, maxSkew ti
 	}
 	timestamp := time.Unix(int64(value.timestamp), 0)
 	if maxSkew < 0 || timestamp.Before(now.Add(-maxSkew)) || timestamp.After(now.Add(maxSkew)) {
-		return hello, errors.New("timestamp admission handshake находится вне допустимого окна")
+		return hello, errors.New("admission handshake timestamp is outside the allowed window")
 	}
 	expected, err := calculateMAC(token, macInput("client", token, value.timestamp, value.nonce[:], nil))
 	if err != nil {
 		return hello, err
 	}
 	if subtle.ConstantTimeCompare(expected[:], value.mac[:]) != 1 {
-		return hello, errors.New("pairing-token authentication не прошла")
+		return hello, errors.New("pairing-token authentication failed")
 	}
 	hello.Timestamp = value.timestamp
 	hello.ClientNonce = value.nonce
@@ -100,7 +100,7 @@ func VerifyAck(token *pairing.Token, hello Hello, encoded []byte) error {
 		return err
 	}
 	if value.timestamp != hello.Timestamp {
-		return errors.New("timestamp admission handshake изменился")
+		return errors.New("admission handshake timestamp changed")
 	}
 	expected, err := calculateMAC(token, macInput(
 		"server", token, hello.Timestamp, hello.ClientNonce[:], value.nonce[:],
@@ -109,7 +109,7 @@ func VerifyAck(token *pairing.Token, hello Hello, encoded []byte) error {
 		return err
 	}
 	if subtle.ConstantTimeCompare(expected[:], value.mac[:]) != 1 {
-		return errors.New("подтверждение pairing-token сервером не прошло")
+		return errors.New("server pairing-token confirmation failed")
 	}
 	return nil
 }
@@ -125,11 +125,11 @@ func AuthenticateClient(stream io.ReadWriter, token *pairing.Token, timeout time
 		defer deadline.SetDeadline(time.Time{})
 	}
 	if err := writeFull(stream, encoded); err != nil {
-		return fmt.Errorf("отправить admission hello: %w", err)
+		return fmt.Errorf("send admission hello: %w", err)
 	}
 	ack := make([]byte, FrameSize)
 	if _, err := io.ReadFull(stream, ack); err != nil {
-		return fmt.Errorf("прочитать admission ack: %w", err)
+		return fmt.Errorf("read admission acknowledgement: %w", err)
 	}
 	return VerifyAck(token, hello, ack)
 }
@@ -142,7 +142,7 @@ func AuthenticateServer(stream io.ReadWriter, token *pairing.Token, timeout time
 	}
 	encoded := make([]byte, FrameSize)
 	if _, err := io.ReadFull(stream, encoded); err != nil {
-		return fmt.Errorf("прочитать admission hello: %w", err)
+		return fmt.Errorf("read admission hello: %w", err)
 	}
 	hello, err := VerifyHello(token, encoded, time.Now(), MaxClockSkew)
 	if err != nil {
@@ -153,7 +153,7 @@ func AuthenticateServer(stream io.ReadWriter, token *pairing.Token, timeout time
 		return err
 	}
 	if err := writeFull(stream, ack); err != nil {
-		return fmt.Errorf("отправить admission ack: %w", err)
+		return fmt.Errorf("send admission acknowledgement: %w", err)
 	}
 	return nil
 }
@@ -172,16 +172,16 @@ func encode(kind byte, timestamp uint64, nonce [NonceSize]byte, mac [MACSize]byt
 func decode(encoded []byte, expectedKind byte) (frame, error) {
 	var result frame
 	if len(encoded) != FrameSize {
-		return result, fmt.Errorf("admission frame должен содержать ровно %d байта", FrameSize)
+		return result, fmt.Errorf("admission frame must contain exactly %d bytes", FrameSize)
 	}
 	if subtle.ConstantTimeCompare(encoded[0:4], magic[:]) != 1 {
-		return result, errors.New("некорректная сигнатура admission frame")
+		return result, errors.New("invalid admission frame signature")
 	}
 	if encoded[4] != Version {
-		return result, fmt.Errorf("неподдерживаемая версия admission: %d", encoded[4])
+		return result, fmt.Errorf("unsupported admission version: %d", encoded[4])
 	}
 	if encoded[5] != expectedKind {
-		return result, fmt.Errorf("неожиданный тип admission frame: %d", encoded[5])
+		return result, fmt.Errorf("unexpected admission frame type: %d", encoded[5])
 	}
 	result.kind = encoded[5]
 	result.timestamp = binary.BigEndian.Uint64(encoded[6:14])
@@ -220,7 +220,7 @@ func fillNonce(destination, source []byte) error {
 		return err
 	}
 	if len(source) != NonceSize {
-		return fmt.Errorf("admission nonce должен содержать ровно %d байт", NonceSize)
+		return fmt.Errorf("admission nonce must contain exactly %d bytes", NonceSize)
 	}
 	copy(destination, source)
 	return nil
