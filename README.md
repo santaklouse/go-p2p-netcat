@@ -103,7 +103,7 @@ Web APIs; it is now versioned and deployed from this repository.
 
 ## Installation
 
-The current stable version is `v0.4.0`. Release archives contain the
+The current stable version is `v0.4.1`. Release archives contain the
 `p2p-nc` and `pnc` executables, the MIT license, and both README files. Verify the
 downloaded archive against `SHA256SUMS` before installing it.
 
@@ -115,7 +115,7 @@ installs the executable into `/usr/local/bin`:
 ```bash
 set -euo pipefail
 
-P2PNC_VERSION="v0.4.0"
+P2PNC_VERSION="v0.4.1"
 case "$(uname -m)" in
   x86_64|amd64) P2PNC_ARCH="amd64" ;;
   aarch64|arm64) P2PNC_ARCH="arm64" ;;
@@ -141,7 +141,7 @@ processor architecture automatically:
 ```bash
 set -euo pipefail
 
-P2PNC_VERSION="v0.4.0"
+P2PNC_VERSION="v0.4.1"
 case "$(uname -m)" in
   x86_64|amd64) P2PNC_ARCH="amd64" ;;
   arm64|aarch64) P2PNC_ARCH="arm64" ;;
@@ -174,7 +174,7 @@ Open PowerShell and run:
 
 ```powershell
 $ErrorActionPreference = 'Stop'
-$Version = 'v0.4.0'
+$Version = 'v0.4.1'
 $Architecture = switch ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()) {
     'X64' { 'amd64' }
     'Arm64' { 'arm64' }
@@ -217,7 +217,7 @@ run:
 ```bash
 set -euo pipefail
 
-P2PNC_VERSION="v0.4.0"
+P2PNC_VERSION="v0.4.1"
 P2PNC_ANDROID_ABI="$(adb shell getprop ro.product.cpu.abi | tr -d '\r')"
 case "$P2PNC_ANDROID_ABI" in
   arm64-v8a) P2PNC_ANDROID_ARCH="arm64" ;;
@@ -254,9 +254,9 @@ With a recent Go installation and automatic toolchain downloads enabled:
 
 ```bash
 GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
-  github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@v0.4.0
+  github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@v0.4.1
 GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
-  github.com/santaklouse/go-p2p-netcat/cmd/pnc@v0.4.0
+  github.com/santaklouse/go-p2p-netcat/cmd/pnc@v0.4.1
 "$(go env GOPATH)/bin/p2p-nc" --version
 ```
 
@@ -437,7 +437,7 @@ analysis pass, the workflow publishes a GitHub Release with these builds:
 
 Linux and macOS builds are distributed as `.tar.gz` archives. Windows builds
 are distributed as `.zip` archives, and Android builds as `.tar.gz` archives.
-Every release also contains `SHA256SUMS`. Semantic tags such as `v0.4.0`
+Every release also contains `SHA256SUMS`. Semantic tags such as `v0.4.1`
 produce stable releases. Builds from `main` are marked as prereleases and use a
 deterministic tag that starts with `main-` and ends with the first 12
 characters of the commit SHA. Rerunning a workflow updates the same release
