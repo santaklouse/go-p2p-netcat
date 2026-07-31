@@ -286,7 +286,7 @@ func runListener(ctx context.Context, opts *options, args []string) error {
 		handleStream(stream, stream.Conn().RemotePeer().String())
 	})
 	var nativeListener *nativewebrtc.Listener
-	if !opts.udp && !opts.noWebRTC && !opts.tor {
+	if nativeWebRTCEnabled(opts) {
 		nativeListener, err = nativewebrtc.StartListener(
 			ctx, privateKey, service, token, nil, nil,
 			func(stream *nativewebrtc.Stream, remote string) {
@@ -365,16 +365,11 @@ func runClient(ctx context.Context, opts *options, args []string) error {
 	openStream := func(openCtx context.Context) (session.Stream, error) {
 		dialCtx, cancel := context.WithTimeout(openCtx, timeout)
 		defer cancel()
-		var stream session.Stream
-		var openErr error
-		if opts.udp {
-			stream, openErr = node.OpenDatagramStream(dialCtx, target, service, opts.relays, token)
-		} else {
-			stream, openErr = openAnyStream(
-				dialCtx, node, target, targetID, service, opts.relays, token,
-				!opts.noWebRTC && !opts.tor,
-			)
-		}
+		stream, openErr := openAnyStream(
+			dialCtx, node, target, targetID, service, opts.relays, token,
+			nativeWebRTCEnabled(opts),
+			opts.udp,
+		)
 		if openErr != nil {
 			return nil, openErr
 		}
@@ -455,15 +450,22 @@ func openAnyStream(
 	relays []string,
 	token *pairing.Token,
 	enableNative bool,
+	datagram bool,
 ) (session.Stream, error) {
+	openLibp2p := func(openCtx context.Context) (session.Stream, error) {
+		if datagram {
+			return node.OpenDatagramStream(openCtx, target, service, relays, token)
+		}
+		return node.OpenStream(openCtx, target, service, relays, token)
+	}
 	if !enableNative {
-		return node.OpenStream(ctx, target, service, relays, token)
+		return openLibp2p(ctx)
 	}
 	raceCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	attempts := make(chan streamAttempt, 2)
+	attempts := make(chan streamAttempt)
 	go func() {
-		stream, err := node.OpenStream(raceCtx, target, service, relays, token)
+		stream, err := openLibp2p(raceCtx)
 		select {
 		case attempts <- streamAttempt{stream: stream, err: err}:
 		case <-raceCtx.Done():
@@ -478,7 +480,10 @@ func openAnyStream(
 			nil, nil,
 		)
 		if err != nil {
-			attempts <- streamAttempt{err: err}
+			select {
+			case attempts <- streamAttempt{err: err}:
+			case <-raceCtx.Done():
+			}
 			return
 		}
 		select {
@@ -501,6 +506,10 @@ func openAnyStream(
 		}
 	}
 	return nil, errors.Join(failures...)
+}
+
+func nativeWebRTCEnabled(opts *options) bool {
+	return !opts.noWebRTC && !opts.tor
 }
 
 func deadlineOr(ctx context.Context, fallback time.Time) time.Time {

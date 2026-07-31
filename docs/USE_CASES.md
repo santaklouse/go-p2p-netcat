@@ -247,8 +247,9 @@ loss. Prefer direct OpenVPN UDP when it is reachable.
 
 WireGuard transports encrypted IP packets exclusively over UDP. The `-u`
 forwarding mode preserves every UDP packet as one length-prefixed frame on the
-P2P stream. It therefore works through direct libp2p QUIC/WebRTC connections,
-TCP/WSS, Tor with an explicit TCP relay, and Circuit Relay v2.
+P2P stream. It therefore works through native WebRTC with Nostr/WebTorrent
+signaling, direct libp2p QUIC/WebRTC connections, TCP/WSS, Tor with an explicit
+TCP relay, and Circuit Relay v2.
 
 Assume WireGuard listens on UDP `51820` on the remote host. Use a different
 local forwarding port, such as `15182`, so it does not conflict with a local
@@ -265,6 +266,13 @@ On the WireGuard client host:
 ```bash
 p2p-nc -u -p 15182 "${P2PNC_PEER_ID}" 35182
 ```
+
+Both commands enable native WebRTC by default. Public Nostr relays and
+WebTorrent trackers exchange signaling only; application packets travel
+peer-to-peer through the ICE-selected DataChannel. This crosses common
+cone/restricted NAT combinations without a user-operated relay. Symmetric NAT
+or networks that block UDP still require TURN, a Circuit Relay, or a reachable
+TCP/WSS route.
 
 Merge these transport values into the client WireGuard configuration:
 
@@ -300,6 +308,7 @@ are accepted.
 
 | Route | Behavior |
 |---|---|
+| Native WebRTC over Nostr/WebTorrent signaling | Traverses compatible NATs with ICE/STUN and no user-operated media relay. The ordered DataChannel carries the same length-prefixed datagrams. |
 | Direct QUIC or libp2p WebRTC Direct | Usually the best route when UDP is reachable. Datagram boundaries are preserved, but the application still uses an ordered reliable libp2p stream. |
 | Direct TCP or WSS | UDP-over-stream works through TCP-only firewalls. Loss of one outer TCP segment delays later WireGuard packets because of head-of-line blocking. |
 | Circuit Relay v2 over TCP/WSS | Reliable fallback behind difficult NAT. It adds relay latency and the same head-of-line behavior. |

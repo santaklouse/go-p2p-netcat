@@ -82,8 +82,9 @@ compatibility, but UDP-over-TCP can suffer head-of-line blocking. Direct QUIC
 or libp2p WebRTC Direct is preferable for VPN traffic when available.
 
 `-u` requires `-p` and cannot be combined with raw stdin/stdout, `-e`, `-i`,
-`-S`, `-z`, or `--quit-delay`. The browser client and the custom
-Nostr/WebTorrent native WebRTC adapter do not currently expose UDP forwarding.
+`-S`, `-z`, or `--quit-delay`. Go peers can carry UDP forwarding through the
+custom Nostr/WebTorrent native WebRTC adapter for NAT traversal. The browser
+client does not expose a local UDP socket.
 
 ## SOCKS proxy: `-S`
 

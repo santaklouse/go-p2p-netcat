@@ -82,8 +82,9 @@ blocking. Для VPN traffic при возможности предпочтит�
 libp2p WebRTC Direct.
 
 `-u` требует `-p` и несовместим с raw stdin/stdout, `-e`, `-i`, `-S`, `-z` и
-`--quit-delay`. Browser-клиент и собственный Nostr/WebTorrent native WebRTC
-adapter пока не предоставляют UDP forwarding.
+`--quit-delay`. Go-пиры могут переносить UDP forwarding через собственный
+Nostr/WebTorrent native WebRTC adapter для прохождения NAT. Browser-клиент не
+предоставляет локальный UDP socket.
 
 ## SOCKS proxy: `-S`
 

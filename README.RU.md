@@ -379,7 +379,10 @@ Token содержит PeerId и логический порт, поэтому �
 
 В WireGuard-конфигурации клиента укажите peer endpoint
 `127.0.0.1:15182`. `p2p-nc` сохраняет границы UDP-пакетов при переносе через
-выбранный libp2p-stream, включая TCP/WSS и Circuit Relay.
+выбранный надёжный stream. Native WebRTC использует публичный
+Nostr/WebTorrent signaling и ICE/STUN для прохождения совместимых NAT без
+собственного relay. Стандартные libp2p TCP, QUIC, WebRTC Direct, WSS и Circuit
+Relay маршруты также остаются доступными.
 
 SOCKS server на удалённой стороне:
 
