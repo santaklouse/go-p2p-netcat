@@ -34,10 +34,11 @@ Pairing-token режим отключает публичный discovery, выв
 DHT/signaling rendezvous, шифрует signaling и аутентифицирует поток до
 передачи прикладных байтов.
 
-UDP mode использует стандартные libp2p stream transports. При доступности
-предпочитаются прямой QUIC и libp2p WebRTC Direct, а TCP, WSS, Tor через TCP
-relay и Circuit Relay v2 дают UDP-over-stream fallback. Собственный
-Nostr/WebTorrent native WebRTC adapter для UDP associations не используется.
+UDP mode запускает гонку стандартного libp2p datagram stream и собственного
+native WebRTC stream. Native WebRTC использует Nostr/WebTorrent signaling и
+ICE/STUN для прохождения NAT без собственного media relay. Также доступны
+прямой QUIC и libp2p WebRTC Direct, а TCP, WSS, Tor через TCP relay и Circuit
+Relay v2 дают UDP-over-stream fallback.
 
 ## Native WebRTC
 

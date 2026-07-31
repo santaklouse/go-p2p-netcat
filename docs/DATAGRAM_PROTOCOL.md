@@ -83,11 +83,12 @@ bounds are exceeded.
 
 ## Transport variants
 
-### Reliable framing over a libp2p stream — implemented
+### Reliable framing over P2P streams — implemented
 
-This is the common mode used by `-u`. It works over every route supported by a
-standard Go libp2p stream:
+This is the common mode used by `-u`. It works over the custom native WebRTC
+stream and every route supported by a standard Go libp2p stream:
 
+- native WebRTC with Nostr/WebTorrent signaling and ICE/STUN NAT traversal;
 - QUIC and libp2p WebRTC Direct when UDP is reachable;
 - TCP and WSS through restrictive firewalls;
 - Circuit Relay v2;
@@ -122,14 +123,14 @@ cheaper and matches WireGuard's stable endpoint behavior.
   five-minute p2p-netcat association active.
 - Use `--udp-idle-timeout 0` only when unlimited idle lifetime is required.
 - Start with `MTU = 1280`, then increase it after path testing.
-- Prefer direct QUIC or libp2p WebRTC Direct; use TCP/WSS or a relay when
-  reachability matters more than latency.
+- Prefer native WebRTC, direct QUIC, or libp2p WebRTC Direct; use TCP/WSS or a
+  relay when reachability matters more than latency.
 - Use a private pairing token for a listener that can reach a non-public UDP
   service.
 
 ## Browser boundary
 
 The static browser client does not expose a local UDP socket and therefore
-cannot provide this forwarding mode. The custom Nostr/WebTorrent native WebRTC
-adapter is also excluded from UDP associations in this version. Standard
-libp2p WebRTC Direct remains available to the Go CLI.
+cannot provide this forwarding mode. Go peers can carry the same datagram
+frames over the custom Nostr/WebTorrent native WebRTC adapter, allowing
+ICE/STUN NAT traversal without a user-operated media relay.

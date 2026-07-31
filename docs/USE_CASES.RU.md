@@ -245,8 +245,9 @@ blocking. Если доступен прямой OpenVPN UDP, он обычно 
 
 WireGuard передаёт зашифрованные IP-пакеты только через UDP. Режим forwarding
 `-u` сохраняет каждый UDP-пакет как один length-prefixed frame внутри
-P2P-stream. Поэтому он работает через прямой libp2p QUIC/WebRTC, TCP/WSS, Tor с
-явным TCP relay и Circuit Relay v2.
+P2P-stream. Поэтому он работает через native WebRTC с Nostr/WebTorrent
+signaling, прямой libp2p QUIC/WebRTC, TCP/WSS, Tor с явным TCP relay и Circuit
+Relay v2.
 
 Предположим, что на удалённой машине WireGuard слушает UDP `51820`. Для
 локального forwarding используйте другой порт, например `15182`, чтобы не
@@ -263,6 +264,13 @@ p2p-nc -u -l -k -d 127.0.0.1 -p 51820 35182
 ```bash
 p2p-nc -u -p 15182 "${P2PNC_PEER_ID}" 35182
 ```
+
+Обе команды по умолчанию включают native WebRTC. Публичные Nostr relay и
+WebTorrent tracker передают только signaling; прикладные пакеты идут напрямую
+между пирами через выбранный ICE DataChannel. Это позволяет проходить обычные
+cone/restricted NAT без собственного relay. Symmetric NAT или сеть,
+блокирующая UDP, всё ещё требует TURN, Circuit Relay либо доступного TCP/WSS
+маршрута.
 
 Добавьте эти transport-параметры в клиентскую конфигурацию WireGuard:
 
@@ -297,6 +305,7 @@ pairing token. Pairing-аутентификация завершается до 
 
 | Маршрут | Поведение |
 |---|---|
+| Native WebRTC через Nostr/WebTorrent signaling | Проходит совместимые NAT через ICE/STUN без собственного media relay. Ordered DataChannel переносит те же length-prefixed datagrams. |
 | Прямой QUIC или libp2p WebRTC Direct | Обычно лучший маршрут при доступном UDP. Границы datagram сохраняются, но приложение всё равно использует упорядоченный надёжный libp2p-stream. |
 | Прямой TCP или WSS | UDP-over-stream работает через TCP-only firewall. Потеря одного внешнего TCP segment задерживает последующие WireGuard-пакеты из-за head-of-line blocking. |
 | Circuit Relay v2 через TCP/WSS | Надёжный fallback за сложным NAT. Добавляет latency relay и такое же head-of-line поведение. |

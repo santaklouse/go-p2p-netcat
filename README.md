@@ -381,7 +381,9 @@ Forward a local UDP endpoint to WireGuard on the remote peer:
 
 Set the WireGuard peer endpoint on the client to `127.0.0.1:15182`.
 `p2p-nc` keeps UDP packet boundaries while carrying the packets through the
-selected libp2p stream, including TCP/WSS and Circuit Relay routes.
+selected reliable stream. Native WebRTC uses public Nostr/WebTorrent signaling
+and ICE/STUN to cross compatible NATs without a user-operated relay. Standard
+libp2p TCP, QUIC, WebRTC Direct, WSS, and Circuit Relay routes remain available.
 
 Run a SOCKS server on the remote peer:
 

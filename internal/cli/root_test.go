@@ -102,6 +102,18 @@ func TestValidateUDPForwardingOptions(t *testing.T) {
 	}
 }
 
+func TestNativeWebRTCEnabledForUDPForwarding(t *testing.T) {
+	if !nativeWebRTCEnabled(&options{udp: true}) {
+		t.Fatal("UDP forwarding must enable native WebRTC NAT traversal")
+	}
+	if nativeWebRTCEnabled(&options{udp: true, noWebRTC: true}) {
+		t.Fatal("--no-webrtc must disable native WebRTC for UDP forwarding")
+	}
+	if nativeWebRTCEnabled(&options{udp: true, tor: true}) {
+		t.Fatal("Tor mode must disable native WebRTC for UDP forwarding")
+	}
+}
+
 func TestServiceParsing(t *testing.T) {
 	for _, valid := range []string{"1", "80", "65535"} {
 		if _, err := parseService(valid); err != nil {

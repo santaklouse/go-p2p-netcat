@@ -81,11 +81,12 @@ UDP semantics допускает потерю пакетов при превыш
 
 ## Варианты транспорта
 
-### Надёжный framing поверх libp2p-stream — реализован
+### Надёжный framing поверх P2P-stream — реализован
 
-Это общий режим `-u`. Он работает через любой route стандартного Go
-libp2p-stream:
+Это общий режим `-u`. Он работает через собственный native WebRTC stream и
+любой route стандартного Go libp2p-stream:
 
+- native WebRTC с Nostr/WebTorrent signaling и прохождением NAT через ICE/STUN;
 - QUIC и libp2p WebRTC Direct при доступном UDP;
 - TCP и WSS через ограничивающие firewall;
 - Circuit Relay v2;
@@ -121,14 +122,14 @@ handshakes и relay load. Долгоживущая association значител�
 - Используйте `--udp-idle-timeout 0`, только если действительно требуется
   неограниченная idle lifetime.
 - Начните с `MTU = 1280` и увеличивайте после path testing.
-- Предпочитайте прямой QUIC или libp2p WebRTC Direct; TCP/WSS и relay нужны,
-  когда reachability важнее latency.
+- Предпочитайте native WebRTC, прямой QUIC или libp2p WebRTC Direct; TCP/WSS и
+  relay нужны, когда reachability важнее latency.
 - Защищайте private pairing token listener, имеющий доступ к непубличному
   UDP-сервису.
 
 ## Граница браузера
 
 Статический browser client не может открыть локальный UDP socket и поэтому не
-предоставляет этот forwarding mode. Собственный Nostr/WebTorrent native WebRTC
-adapter также исключён из UDP associations этой версии. Стандартный libp2p
-WebRTC Direct остаётся доступен Go CLI.
+предоставляет этот forwarding mode. Go-пиры могут переносить те же datagram
+frames через собственный Nostr/WebTorrent native WebRTC adapter, используя
+ICE/STUN для прохождения NAT без собственного media relay.

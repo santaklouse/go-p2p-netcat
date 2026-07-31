@@ -11,6 +11,7 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/santaklouse/go-p2p-netcat/protocol/datagram"
 	"github.com/santaklouse/go-p2p-netcat/protocol/pairing"
 )
 
@@ -335,6 +336,32 @@ func TestCompleteNativeEndpointHandshakeAndData(t *testing.T) {
 	}
 	if string(buffer) != "server-to-client" {
 		t.Fatalf("client received %q", buffer)
+	}
+	for _, payload := range [][]byte{
+		[]byte("wireguard-handshake"),
+		[]byte("wireguard-transport-data"),
+		bytes.Repeat([]byte{0xa5}, datagram.MaxPayloadLength),
+	} {
+		if err := datagram.Write(clientConnection.Stream, payload); err != nil {
+			t.Fatal(err)
+		}
+		received, err := datagram.Read(serverStream)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(received, payload) {
+			t.Fatalf("server received UDP payload %q, want %q", received, payload)
+		}
+		if err := datagram.Write(serverStream, received); err != nil {
+			t.Fatal(err)
+		}
+		reply, err := datagram.Read(clientConnection.Stream)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(reply, payload) {
+			t.Fatalf("client received UDP payload %q, want %q", reply, payload)
+		}
 	}
 }
 
