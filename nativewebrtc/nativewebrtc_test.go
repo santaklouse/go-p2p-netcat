@@ -338,6 +338,18 @@ func TestCompleteNativeEndpointHandshakeAndData(t *testing.T) {
 	}
 }
 
+func TestCopyICEServersCreatesIndependentNonNilSnapshot(t *testing.T) {
+	original := []string{"stun:example.test:3478"}
+	snapshot := copyICEServers(original)
+	original[0] = "stun:changed.test:3478"
+	if snapshot[0] != "stun:example.test:3478" {
+		t.Fatalf("ICE server snapshot changed to %q", snapshot[0])
+	}
+	if empty := copyICEServers(nil); empty == nil {
+		t.Fatal("empty ICE server snapshot must be non-nil")
+	}
+}
+
 func TestListenerReconnectsTheSameLogicalStream(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

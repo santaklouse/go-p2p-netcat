@@ -351,7 +351,8 @@ func connectWithSession(
 	expected peer.ID,
 	service uint16,
 ) (*Connection, error) {
-	p2p, err := dialAuthenticatedPeer(ctx, signaling, expected, service)
+	iceServers := copyICEServers(DefaultICEServers)
+	p2p, err := dialAuthenticatedPeer(ctx, signaling, expected, service, iceServers)
 	if err != nil {
 		return nil, err
 	}
@@ -366,7 +367,7 @@ func connectWithSession(
 		})
 		return result
 	})
-	go superviseClientConnection(connectionCtx, signaling, expected, service, link, stream, p2p)
+	go superviseClientConnection(connectionCtx, signaling, expected, service, iceServers, link, stream, p2p)
 	return &Connection{
 		Stream: stream, Signaling: signaling.Name(), close: stream.Close,
 	}, nil
@@ -377,12 +378,13 @@ func dialAuthenticatedPeer(
 	signaling SignalingSession,
 	expected peer.ID,
 	service uint16,
+	iceServers []string,
 ) (*nativePeer, error) {
 	sessionID, err := CreateSignalingSessionID()
 	if err != nil {
 		return nil, err
 	}
-	p2p, err := newNativePeer(true, nil)
+	p2p, err := newNativePeer(true, iceServers)
 	if err != nil {
 		return nil, err
 	}
@@ -479,6 +481,7 @@ func superviseClientConnection(
 	signaling SignalingSession,
 	expected peer.ID,
 	service uint16,
+	iceServers []string,
 	link *peerLink,
 	stream *Stream,
 	current *nativePeer,
@@ -493,7 +496,7 @@ func superviseClientConnection(
 		var next *nativePeer
 		for reconnectCtx.Err() == nil {
 			attemptCtx, attemptCancel := context.WithTimeout(reconnectCtx, 20*time.Second)
-			candidate, err := dialAuthenticatedPeer(attemptCtx, signaling, expected, service)
+			candidate, err := dialAuthenticatedPeer(attemptCtx, signaling, expected, service, iceServers)
 			attemptCancel()
 			if err == nil {
 				next = candidate
@@ -516,6 +519,12 @@ func superviseClientConnection(
 		}
 		current = next
 	}
+}
+
+func copyICEServers(iceServers []string) []string {
+	result := make([]string, len(iceServers))
+	copy(result, iceServers)
+	return result
 }
 
 func boolPointer(value bool) *bool { return &value }
