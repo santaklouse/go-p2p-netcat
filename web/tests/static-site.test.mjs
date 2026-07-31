@@ -26,6 +26,38 @@ test("builds as a static PWA without a server bundle", async () => {
   await assert.rejects(access(new URL("../dist/server/", import.meta.url)));
 });
 
+test("exposes project status badges in the README and PWA", async () => {
+  const [readme, readmeRu, page, localization, styles, sourceHtml, builtHtml] = await Promise.all([
+    readFile(new URL("../../README.md", import.meta.url), "utf8"),
+    readFile(new URL("../../README.RU.md", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/i18n.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../index.html", import.meta.url), "utf8"),
+    readFile(new URL("../dist/index.html", import.meta.url), "utf8"),
+  ]);
+
+  for (const document of [readme, readmeRu]) {
+    assert.match(document, /actions\/workflows\/ci\.yml\/badge\.svg\?branch=main/);
+    assert.match(document, /actions\/workflows\/pages\.yml\/badge\.svg\?branch=main/);
+    assert.match(document, /img\.shields\.io\/github\/v\/release/);
+    assert.match(document, /pkg\.go\.dev\/badge/);
+    assert.match(document, /goreportcard\.com\/badge/);
+    assert.match(document, /GHCR-published/);
+    assert.match(document, /img\.shields\.io\/github\/license/);
+  }
+  assert.match(page, /const PROJECT_BADGES/);
+  assert.match(page, /className="project-badges"/);
+  assert.match(page, /aria-label=\{copy\.projectBadgesAria\}/);
+  assert.match(page, /alt=\{badge\.alt\}/);
+  assert.match(localization, /projectBadgesAria: "Project status and resources"/);
+  assert.match(localization, /projectBadgesAria: "Статус и ресурсы проекта"/);
+  assert.match(styles, /\.project-badge:focus-visible/);
+  for (const html of [sourceHtml, builtHtml]) {
+    assert.match(html, /img-src 'self' data: https:\/\/github\.com https:\/\/img\.shields\.io https:\/\/pkg\.go\.dev https:\/\/goreportcard\.com/);
+  }
+});
+
 test("runs the network stack in a dedicated Web Worker", async () => {
   const [worker, client, nativeWebRtc, core, signaling, endpoint, page, localization, terminal, main, styles, goModule, webPackage] = await Promise.all([
     readFile(new URL("../app/p2p.worker.ts", import.meta.url), "utf8"),

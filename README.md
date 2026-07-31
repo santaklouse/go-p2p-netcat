@@ -2,6 +2,14 @@
 
 **English** | [Русский](README.RU.md)
 
+[![CI](https://github.com/santaklouse/go-p2p-netcat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/santaklouse/go-p2p-netcat/actions/workflows/ci.yml)
+[![PWA](https://github.com/santaklouse/go-p2p-netcat/actions/workflows/pages.yml/badge.svg?branch=main)](https://santaklouse.github.io/go-p2p-netcat/)
+[![Release](https://img.shields.io/github/v/release/santaklouse/go-p2p-netcat?sort=semver)](https://github.com/santaklouse/go-p2p-netcat/releases/latest)
+[![Go Reference](https://pkg.go.dev/badge/github.com/santaklouse/go-p2p-netcat.svg)](https://pkg.go.dev/github.com/santaklouse/go-p2p-netcat)
+[![Go Report Card](https://goreportcard.com/badge/github.com/santaklouse/go-p2p-netcat)](https://goreportcard.com/report/github.com/santaklouse/go-p2p-netcat)
+[![Container](https://img.shields.io/badge/GHCR-published-2496ED?logo=docker&logoColor=white)](https://github.com/santaklouse/go-p2p-netcat/pkgs/container/go-p2p-netcat)
+[![License](https://img.shields.io/github/license/santaklouse/go-p2p-netcat)](LICENSE)
+
 ## Quick install
 
 Install the latest tagged version:

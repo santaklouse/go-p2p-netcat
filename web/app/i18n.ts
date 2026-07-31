@@ -31,6 +31,7 @@ export const uiText = {
     heroLineTwo: "Right in your browser.",
     heroCopy:
       "Enter a PeerId and the client will discover a browser-compatible route automatically. You can provide a Circuit Relay manually only as a fallback.",
+    projectBadgesAria: "Project status and resources",
     installTitle: "Install the command-line utility",
     copied: "Copied",
     copy: "Copy",
@@ -110,6 +111,7 @@ export const uiText = {
     heroLineTwo: "Прямо из браузера.",
     heroCopy:
       "Введите PeerId — клиент сам найдёт браузерный маршрут через IPFS. Circuit Relay можно указать вручную только как резервный маршрут.",
+    projectBadgesAria: "Статус и ресурсы проекта",
     installTitle: "Установить консольную утилиту",
     copied: "Скопировано",
     copy: "Копировать",

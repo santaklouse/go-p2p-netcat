@@ -8,6 +8,43 @@ const BrowserTerminal = lazy(() => import("./browser-terminal"));
 const INSTALL_COMMAND = "GOTOOLCHAIN=auto CGO_ENABLED=0 go install github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@latest";
 const INSTALLATION_RU_URL = "https://github.com/santaklouse/go-p2p-netcat/blob/main/docs/INSTALLATION.RU.md";
 const INSTALLATION_EN_URL = "https://github.com/santaklouse/go-p2p-netcat/blob/main/docs/INSTALLATION.md";
+const PROJECT_BADGES = [
+  {
+    href: "https://github.com/santaklouse/go-p2p-netcat/actions/workflows/ci.yml",
+    src: "https://github.com/santaklouse/go-p2p-netcat/actions/workflows/ci.yml/badge.svg?branch=main",
+    alt: "CI workflow status",
+  },
+  {
+    href: "https://santaklouse.github.io/go-p2p-netcat/",
+    src: "https://github.com/santaklouse/go-p2p-netcat/actions/workflows/pages.yml/badge.svg?branch=main",
+    alt: "PWA deployment status",
+  },
+  {
+    href: "https://github.com/santaklouse/go-p2p-netcat/releases/latest",
+    src: "https://img.shields.io/github/v/release/santaklouse/go-p2p-netcat?sort=semver",
+    alt: "Latest GitHub release",
+  },
+  {
+    href: "https://pkg.go.dev/github.com/santaklouse/go-p2p-netcat",
+    src: "https://pkg.go.dev/badge/github.com/santaklouse/go-p2p-netcat.svg",
+    alt: "Go package reference",
+  },
+  {
+    href: "https://goreportcard.com/report/github.com/santaklouse/go-p2p-netcat",
+    src: "https://goreportcard.com/badge/github.com/santaklouse/go-p2p-netcat",
+    alt: "Go Report Card grade",
+  },
+  {
+    href: "https://github.com/santaklouse/go-p2p-netcat/pkgs/container/go-p2p-netcat",
+    src: "https://img.shields.io/badge/GHCR-published-2496ED?logo=docker&logoColor=white",
+    alt: "Container published to GitHub Container Registry",
+  },
+  {
+    href: "https://github.com/santaklouse/go-p2p-netcat/blob/main/LICENSE",
+    src: "https://img.shields.io/github/license/santaklouse/go-p2p-netcat",
+    alt: "Repository license",
+  },
+] as const;
 
 type ConnectionState = "idle" | "starting" | "connecting" | "connected" | "reconnecting" | "closed" | "error";
 type LogEntry = { id: number; time: string; message: string; kind: "info" | "success" | "error" };
@@ -280,6 +317,20 @@ export default function Home() {
         </div>
         <p className="hero-copy">{copy.heroCopy}</p>
       </section>
+
+      <nav className="project-badges" aria-label={copy.projectBadgesAria}>
+        {PROJECT_BADGES.map((badge) => (
+          <a
+            key={badge.href}
+            className="project-badge"
+            href={badge.href}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <img src={badge.src} alt={badge.alt} height="20" />
+          </a>
+        ))}
+      </nav>
 
       <section className="install-strip" aria-labelledby="install-title">
         <div className="install-heading">

@@ -47,6 +47,12 @@ code, pre, kbd { font-family: "SFMono-Regular", Consolas, "Liberation Mono", mon
 .hero h1 span { color: #6f860e; }
 .hero-copy { margin: 0; max-width: 400px; line-height: 1.6; color: var(--muted); padding-bottom: 5px; }
 
+.project-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: -14px 0 28px; }
+.project-badge { display: inline-flex; min-height: 28px; align-items: center; padding: 3px; border: 1px solid transparent; background: rgba(250, 249, 243, .55); transition: border-color .16s ease, background-color .16s ease, transform .16s ease; }
+.project-badge:hover { border-color: var(--line); background: var(--surface); transform: translateY(-1px); }
+.project-badge:focus-visible { outline: 2px solid #71840b; outline-offset: 2px; }
+.project-badge img { display: block; width: auto; max-width: 100%; height: 20px; }
+
 .install-strip { display: grid; grid-template-columns: minmax(230px, .7fr) minmax(360px, 1.3fr) auto; align-items: center; gap: 24px; margin-bottom: 28px; padding: 18px 20px; border: 1px solid var(--ink); background: var(--surface); }
 .install-heading { display: flex; align-items: flex-start; gap: 13px; }
 .install-heading p { margin: 0 0 4px; color: var(--muted); font: 600 10px/1 "SFMono-Regular", monospace; text-transform: uppercase; letter-spacing: .12em; }
@@ -163,6 +169,8 @@ footer span { color: #71840b; }
   .language-link { font-size: 10px; }
   .connection-pill { min-width: 0; padding: 8px 9px; font-size: 9px; }
   .hero h1 { font-size: 40px; }
+  .project-badges { gap: 5px; margin-top: -10px; }
+  .project-badge { max-width: 100%; }
   .install-strip { padding: 16px; gap: 15px; }
   .install-command { grid-template-columns: 1fr; }
   .install-command button { min-height: 38px; border-left: 0; border-top: 1px solid #343a2e; }
