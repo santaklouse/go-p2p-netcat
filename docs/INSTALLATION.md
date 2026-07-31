@@ -28,7 +28,7 @@ Pin a version:
 ```bash
 curl -fsSL \
   https://raw.githubusercontent.com/santaklouse/go-p2p-netcat/main/deploy/deploy.sh |
-  P2PNC_VERSION=v0.4.1 bash
+  P2PNC_VERSION=v0.5.0 bash
 ```
 
 Install without elevated privileges:
