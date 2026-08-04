@@ -233,13 +233,15 @@ jobs:
           merge-multiple: true
       - name: Add installer
         shell: bash
-        run: install -m 0755 deploy/deploy.sh dist/deploy.sh
+        run: |
+          install -m 0755 deploy/deploy.sh dist/deploy.sh
+          install -m 0755 deploy/wireguard-full-tunnel.sh dist/wireguard-full-tunnel.sh
       - name: Create checksums
         shell: bash
         run: |
           set -euo pipefail
           cd dist
-          sha256sum p2p-nc-* deploy.sh > SHA256SUMS
+          sha256sum p2p-nc-* deploy.sh wireguard-full-tunnel.sh > SHA256SUMS
           sha256sum --check SHA256SUMS
       - name: Attest release artifacts
         uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1

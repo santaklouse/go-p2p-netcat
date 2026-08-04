@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"errors"
 	"io"
 	"sync"
 	"testing"
@@ -147,6 +148,68 @@ func TestStreamDataEOFAndAbort(t *testing.T) {
 	}
 	if !sawData || !sawEOF {
 		t.Fatalf("sent frames = %+v", sent)
+	}
+}
+
+func TestStreamCloseSendsGracefulEOF(t *testing.T) {
+	sender, receiver, cleanup := linkedTestStreams()
+	defer cleanup()
+
+	if _, err := sender.Write([]byte("final output")); err != nil {
+		t.Fatal(err)
+	}
+	if err := sender.Close(); err != nil {
+		t.Fatal(err)
+	}
+	value, err := io.ReadAll(receiver)
+	if err != nil {
+		t.Fatalf("graceful Close produced a read error: %v", err)
+	}
+	if string(value) != "final output" {
+		t.Fatalf("read = %q", value)
+	}
+}
+
+func TestStreamResetSendsAbort(t *testing.T) {
+	sender, receiver, cleanup := linkedTestStreams()
+	defer cleanup()
+	if err := sender.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := receiver.Read(make([]byte, 1)); err == nil || errors.Is(err, io.EOF) {
+		t.Fatalf("Reset produced %v, want a non-EOF abort error", err)
+	}
+}
+
+func linkedTestStreams() (*Stream, *Stream, func()) {
+	frames := make(chan Frame, 32)
+	done := make(chan struct{})
+	sender := NewStream(func(frame Frame) error {
+		select {
+		case frames <- frame:
+			return nil
+		case <-done:
+			return io.ErrClosedPipe
+		}
+	}, nil)
+	receiver := NewStream(func(Frame) error { return nil }, nil)
+	go func() {
+		for {
+			select {
+			case frame := <-frames:
+				_ = receiver.Receive(frame)
+			case <-done:
+				return
+			}
+		}
+	}()
+	var once sync.Once
+	return sender, receiver, func() {
+		once.Do(func() {
+			_ = sender.Close()
+			_ = receiver.Close()
+			close(done)
+		})
 	}
 }
 
@@ -362,6 +425,22 @@ func TestCompleteNativeEndpointHandshakeAndData(t *testing.T) {
 		if !bytes.Equal(reply, payload) {
 			t.Fatalf("client received UDP payload %q, want %q", reply, payload)
 		}
+	}
+	if err := serverStream.Close(); err != nil {
+		t.Fatal(err)
+	}
+	readDone := make(chan error, 1)
+	go func() {
+		_, err := io.ReadAll(clientConnection.Stream)
+		readDone <- err
+	}()
+	select {
+	case err := <-readDone:
+		if err != nil {
+			t.Fatalf("native Close did not deliver a graceful EOF: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("native Close did not deliver EOF")
 	}
 }
 

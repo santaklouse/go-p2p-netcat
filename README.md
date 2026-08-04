@@ -303,6 +303,14 @@ Start a listener:
 ./p2p-nc -l 8080
 ```
 
+Only one local listener can own a logical port at a time. This applies across
+raw, PTY, exec, SOCKS, TCP-forwarding, and UDP-forwarding modes. A second
+listener exits with status `1` and reports:
+
+```text
+[p2p-nc] error: logical port 8080 already has an active listener
+```
+
 The command prints its PeerId and available multiaddrs to `stderr`. Connect
 from the client:
 
@@ -384,7 +392,9 @@ Forward a local UDP endpoint to WireGuard on the remote peer:
 ./p2p-nc -u -l -d 127.0.0.1 -p 51820 35182
 
 # WireGuard client host
-./p2p-nc -u -p 15182 12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 35182
+sudo ./deploy/wireguard-full-tunnel.sh -- \
+  /usr/local/bin/p2p-nc -u --udp-idle-timeout 0 -p 15182 \
+  12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 35182
 ```
 
 Set the WireGuard peer endpoint on the client to `127.0.0.1:15182`.
@@ -392,6 +402,10 @@ Set the WireGuard peer endpoint on the client to `127.0.0.1:15182`.
 selected reliable stream. Native WebRTC uses public Nostr/WebTorrent signaling
 and ICE/STUN to cross compatible NATs without a user-operated relay. Standard
 libp2p TCP, QUIC, WebRTC Direct, WSS, and Circuit Relay routes remain available.
+For `AllowedIPs = 0.0.0.0/0`, the Linux wrapper is required so signaling and
+carrier sockets keep using the physical `main` route instead of recursively
+entering WireGuard. The complete gateway, NAT, and verification configuration
+is in [the WireGuard cookbook](docs/USE_CASES.md#wireguard-and-packet-preserving-udp-forwarding).
 
 Run a SOCKS server on the remote peer:
 

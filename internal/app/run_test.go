@@ -2,8 +2,11 @@ package app
 
 import (
 	"bytes"
+	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/santaklouse/go-p2p-netcat/internal/listenerlock"
 )
 
 func TestVersionWorksForBothCommandAliases(t *testing.T) {
@@ -23,5 +26,48 @@ func TestInvalidOptionsReturnFailure(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "requires -p/--port") {
 		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestDuplicateLogicalPortReturnsFailureForEveryListenerMode(t *testing.T) {
+	t.Setenv(listenerlock.DirectoryEnvironment, t.TempDir())
+	const service = uint16(41234)
+	lock, err := listenerlock.Acquire(service)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
+
+	port := strconv.Itoa(int(service))
+	tests := []struct {
+		name  string
+		args  []string
+		quiet bool
+	}{
+		{name: "raw", args: []string{"-l", port}},
+		{name: "keep-open", args: []string{"-l", "-k", port}},
+		{name: "PTY", args: []string{"-l", "-i", port}},
+		{name: "exec", args: []string{"-l", "-e", "true", port}},
+		{name: "SOCKS", args: []string{"-l", "-S", port}},
+		{name: "TCP forwarding", args: []string{"-l", "-p", "22", port}},
+		{name: "UDP forwarding", args: []string{"-l", "-u", "-p", "51820", port}},
+		{name: "quiet", args: []string{"-q", "-l", port}, quiet: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			if code := Run(test.args, strings.NewReader(""), &stdout, &stderr); code == 0 {
+				t.Fatalf("Run(%q) exit code = 0, want non-zero", test.args)
+			}
+			if test.quiet {
+				if stderr.Len() != 0 {
+					t.Fatalf("quiet stderr = %q", stderr.String())
+				}
+				return
+			}
+			if !strings.Contains(stderr.String(), "logical port 41234 already has an active listener") {
+				t.Fatalf("stderr = %q", stderr.String())
+			}
+		})
 	}
 }

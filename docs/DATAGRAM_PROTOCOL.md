@@ -60,8 +60,10 @@ without detecting a new failure class.
 The client binds one local UDP port. Its association key is the complete local
 source address and port returned by the UDP socket.
 
-1. The first packet from a source creates a P2P datagram stream.
-2. Packets from that source are queued in arrival order while dialing.
+1. The client pre-establishes one carrier before announcing the local socket;
+   the first source claims that stream. Later sources create independent P2P
+   datagram streams.
+2. Packets from a source are queued in arrival order while its stream opens.
 3. The listener opens one connected UDP socket to its configured fixed target.
 4. Target replies are framed on the same P2P stream and written back to the
    original local source.
@@ -127,6 +129,10 @@ cheaper and matches WireGuard's stable endpoint behavior.
   relay when reachability matters more than latency.
 - Use a private pairing token for a listener that can reach a non-public UDP
   service.
+- For a WireGuard `0.0.0.0/0` client on Linux, run p2p-netcat through
+  `deploy/wireguard-full-tunnel.sh`. Preconnection removes the startup race;
+  the wrapper's dedicated-UID policy rule also protects DNS, signaling, ICE,
+  and reconnect traffic after the default route changes.
 
 ## Browser boundary
 

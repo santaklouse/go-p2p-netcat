@@ -13,6 +13,8 @@ import (
 
 const flowWindowBytes = 256 * 1024
 
+const controlDeliveryDelay = 50 * time.Millisecond
+
 // Stream adapts the native WebRTC framed data channel to session.Stream.
 type Stream struct {
 	send      func(Frame) error
@@ -104,12 +106,23 @@ func (s *Stream) CloseWrite() error {
 }
 
 func (s *Stream) Close() error {
+	// Match libp2p network.Stream semantics: Close is graceful and sends EOF.
+	// Reset is the operation that aborts a stream. Sending "abort" here could
+	// race with the preceding PTY EOF and leave an interactive client waiting
+	// after its remote shell had already exited.
+	writeErr := s.CloseWrite()
 	s.fail(io.EOF, false)
-	_ = s.sendControl("abort")
 	if s.closePeer != nil {
-		return s.closePeer()
+		// DataChannel.Send only queues the control frame. Match the browser
+		// endpoint's delivery grace so closing the PeerConnection cannot discard
+		// EOF before the remote reader observes it.
+		if writeErr == nil {
+			timer := time.NewTimer(controlDeliveryDelay)
+			<-timer.C
+		}
+		return errors.Join(writeErr, s.closePeer())
 	}
-	return nil
+	return writeErr
 }
 
 func (s *Stream) Reset() error {
