@@ -49,7 +49,7 @@ jobs:
           "${RUNNER_TEMP}/actionlint-bin/actionlint"
       - name: Check shell syntax
         shell: bash
-        run: bash -n deploy/deploy.sh deploy/deploy_test.sh scripts/docker_test.sh scripts/sync-wiki.sh scripts/sync-wiki_test.sh
+        run: bash -n deploy/deploy.sh deploy/deploy_test.sh deploy/wireguard-full-tunnel.sh deploy/wireguard-full-tunnel_test.sh scripts/docker_test.sh scripts/full_tunnel_netns_test.sh scripts/sync-wiki.sh scripts/sync-wiki_test.sh
 
   test:
     name: Go tests (${{ matrix.os }})
@@ -80,7 +80,9 @@ jobs:
       - name: Test deploy script
         if: runner.os != 'Windows'
         shell: bash
-        run: bash deploy/deploy_test.sh
+        run: |
+          bash deploy/deploy_test.sh
+          bash deploy/wireguard-full-tunnel_test.sh
       - name: Test Wiki generation
         if: runner.os != 'Windows'
         shell: bash
@@ -103,6 +105,33 @@ jobs:
           cache-dependency-path: go.sum
       - name: Run race detector
         run: go test -race -count=1 -timeout=25m ./...
+
+  full-tunnel:
+    name: WireGuard full tunnel across two NATs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Install network test dependencies
+        run: sudo apt-get update && sudo apt-get install -y iptables wireguard-tools
+      - name: Build Linux command
+        run: go build -trimpath -o "${RUNNER_TEMP}/p2p-nc" ./cmd/p2p-nc
+      - name: Exercise full Internet tunnel
+        shell: bash
+        run: |
+          sudo env \
+            P2PNC_BINARY="${RUNNER_TEMP}/p2p-nc" \
+            P2PNC_IPTABLES=iptables-legacy \
+            bash scripts/full_tunnel_netns_test.sh
 
   container:
     name: Docker image

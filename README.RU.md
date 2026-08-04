@@ -382,7 +382,9 @@ Token содержит PeerId и логический порт, поэтому �
 ./p2p-nc -u -l -d 127.0.0.1 -p 51820 35182
 
 # Машина с WireGuard-клиентом
-./p2p-nc -u -p 15182 12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 35182
+sudo ./deploy/wireguard-full-tunnel.sh -- \
+  /usr/local/bin/p2p-nc -u --udp-idle-timeout 0 -p 15182 \
+  12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 35182
 ```
 
 В WireGuard-конфигурации клиента укажите peer endpoint
@@ -391,6 +393,10 @@ Token содержит PeerId и логический порт, поэтому �
 Nostr/WebTorrent signaling и ICE/STUN для прохождения совместимых NAT без
 собственного relay. Стандартные libp2p TCP, QUIC, WebRTC Direct, WSS и Circuit
 Relay маршруты также остаются доступными.
+При `AllowedIPs = 0.0.0.0/0` Linux wrapper обязателен: signaling и carrier
+sockets должны продолжать использовать физическую таблицу `main`, а не
+рекурсивно попадать в WireGuard. Полная конфигурация gateway, NAT и проверок
+приведена в [WireGuard-разделе](docs/USE_CASES.RU.md#wireguard-и-udp-forwarding-с-сохранением-пакетов).
 
 SOCKS server на удалённой стороне:
 

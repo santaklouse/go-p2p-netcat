@@ -264,8 +264,27 @@ p2p-nc -u -l -k -d 127.0.0.1 -p 51820 35182
 On the WireGuard client host:
 
 ```bash
-p2p-nc -u -p 15182 "${P2PNC_PEER_ID}" 35182
+sudo wireguard-full-tunnel.sh -- \
+  /usr/local/bin/p2p-nc -u --udp-idle-timeout 0 \
+  -p 15182 "${P2PNC_PEER_ID}" 35182
 ```
+
+Install the wrapper shipped with the release first:
+
+```bash
+sudo install -m 0755 deploy/wireguard-full-tunnel.sh \
+  /usr/local/sbin/wireguard-full-tunnel.sh
+```
+
+The UDP carrier is established before the local socket is announced. The
+wrapper then runs the complete p2p-netcat process under an unused numeric UID
+and installs IPv4 and IPv6 `ip rule ... uidrange ... lookup main` rules for its
+lifetime. Consequently libp2p, DNS, Nostr/WebTorrent signaling, STUN, ICE, and
+carrier reconnects continue to use the physical route after WireGuard installs
+`0.0.0.0/0`; none of them can recursively enter the tunnel they transport.
+The wrapper requires Linux, root, `iproute2`, and `setpriv` from `util-linux`.
+Use `--home /var/lib/p2p-netcat-client` when a persistent client identity is
+required, and make that directory writable by the UID selected with `--uid`.
 
 Both commands enable native WebRTC by default. Public Nostr relays and
 WebTorrent trackers exchange signaling only; application packets travel
@@ -278,16 +297,83 @@ Merge these transport values into the client WireGuard configuration:
 
 ```ini
 [Interface]
+Address = 10.66.66.2/24
+DNS = 1.1.1.1
 MTU = 1280
 
 [Peer]
 Endpoint = 127.0.0.1:15182
+AllowedIPs = 0.0.0.0/0
 PersistentKeepalive = 25
 ```
 
-The first packet from a local source endpoint creates one P2P stream and one
-connected UDP socket on the remote side. Replies are returned only to that
-source. Different local source endpoints use independent streams, so their
+Start p2p-netcat through the wrapper first, wait for
+`P2P UDP carrier established`, and only then run `wg-quick up wg0`.
+
+### WireGuard gateway for full Internet access
+
+The remote host must forward and masquerade tunnel traffic. Run this complete
+setup on the gateway; it generates a new server/client key pair, detects the
+physical egress interface, writes `/etc/wireguard/wg0.conf`, and creates the
+matching `wg0-client.conf` in the current directory:
+
+```bash
+set -euo pipefail
+umask 077
+
+server_private_key="$(wg genkey)"
+server_public_key="$(printf '%s' "${server_private_key}" | wg pubkey)"
+client_private_key="$(wg genkey)"
+client_public_key="$(printf '%s' "${client_private_key}" | wg pubkey)"
+egress_interface="$(ip -4 route show default | awk 'NR == 1 { for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }')"
+test -n "${egress_interface}"
+
+sudo install -d -m 0700 /etc/wireguard
+sudo install -m 0600 /dev/null /etc/wireguard/wg0.conf
+sudo tee /etc/wireguard/wg0.conf >/dev/null <<EOF
+[Interface]
+Address = 10.66.66.1/24
+ListenPort = 51820
+PrivateKey = ${server_private_key}
+PostUp = sysctl -w net.ipv4.ip_forward=1; iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT; iptables -t nat -A POSTROUTING -s 10.66.66.0/24 -o ${egress_interface} -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT; iptables -t nat -D POSTROUTING -s 10.66.66.0/24 -o ${egress_interface} -j MASQUERADE
+
+[Peer]
+PublicKey = ${client_public_key}
+AllowedIPs = 10.66.66.2/32
+EOF
+sudo chmod 0600 /etc/wireguard/wg0.conf
+
+cat >wg0-client.conf <<EOF
+[Interface]
+Address = 10.66.66.2/24
+DNS = 1.1.1.1
+MTU = 1280
+PrivateKey = ${client_private_key}
+
+[Peer]
+PublicKey = ${server_public_key}
+Endpoint = 127.0.0.1:15182
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25
+EOF
+chmod 0600 wg0-client.conf
+```
+
+Transfer `wg0-client.conf` securely to the client. Persist
+`net.ipv4.ip_forward=1` in the host's sysctl configuration for production. Add
+`::/0` on the client only when the gateway also has routed IPv6 forwarding;
+the IPv4 example intentionally does not hide IPv6 behind NAT66. Verify the
+complete path with:
+
+```bash
+wg show wg0 latest-handshakes
+curl --fail https://ifconfig.me/ip
+```
+
+The client pre-establishes one P2P stream; the first packet from a local source
+endpoint claims it and creates one connected UDP socket on the remote side.
+Replies are returned only to that source. Different local source endpoints use independent streams, so their
 packets and replies cannot be mixed.
 
 Idle associations close after 300 seconds by default. WireGuard's
@@ -297,7 +383,9 @@ disable expiration on both p2p-netcat processes:
 
 ```bash
 p2p-nc -u --udp-idle-timeout 0 -l -k -d 127.0.0.1 -p 51820 35182
-p2p-nc -u --udp-idle-timeout 0 -p 15182 "${P2PNC_PEER_ID}" 35182
+sudo wireguard-full-tunnel.sh -- \
+  /usr/local/bin/p2p-nc -u --udp-idle-timeout 0 \
+  -p 15182 "${P2PNC_PEER_ID}" 35182
 ```
 
 Protect the listener with a pairing token when the logical service or

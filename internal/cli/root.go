@@ -156,8 +156,17 @@ func validateOptions(command *cobra.Command, opts *options, args []string) error
 	if opts.udp && (opts.socks || opts.interactive || opts.zero || opts.exec != "" || opts.quitDelay != 0) {
 		return errors.New("-u cannot be combined with -S, -i, -z, -e, or --quit-delay")
 	}
+	if opts.keepOpen && !opts.listen {
+		return errors.New("-k/--keep-open is available only with -l")
+	}
+	if opts.zero && opts.listen {
+		return errors.New("-z/--zero is available only in client mode")
+	}
 	if opts.exec != "" && !opts.listen {
 		return errors.New("-e is available only with -l")
+	}
+	if opts.exec != "" && (opts.port != 0 || opts.destination != "" || opts.socks) {
+		return errors.New("-e cannot be combined with -p, -d, or -S")
 	}
 	if opts.destination != "" && (!opts.listen || opts.port == 0) {
 		return errors.New("-d is available only with -l -p <port>")
@@ -168,14 +177,17 @@ func validateOptions(command *cobra.Command, opts *options, args []string) error
 	if opts.socks && (opts.destination != "" || opts.port != 0) {
 		return errors.New("-S cannot be combined with server-side -d/-p")
 	}
-	if opts.interactive && (opts.exec != "" || opts.socks) {
-		return errors.New("-i cannot be combined with -e or -S")
+	if opts.interactive && (opts.exec != "" || opts.socks || opts.port != 0 || opts.destination != "") {
+		return errors.New("-i cannot be combined with -e, -S, -p, or -d")
 	}
 	if !opts.listen && opts.port != 0 && (opts.interactive || opts.zero) {
 		return errors.New("client-side -p cannot be combined with -i or -z")
 	}
 	if opts.tor && opts.listen {
 		return errors.New("-T is supported only in client mode")
+	}
+	if opts.quitDelay != 0 && (opts.port != 0 || opts.socks || opts.interactive || opts.zero || opts.exec != "") {
+		return errors.New("--quit-delay is available only for raw stream mode")
 	}
 	if opts.tor && len(opts.relays) == 0 {
 		return errors.New("-T requires an explicit --relay")
@@ -386,12 +398,21 @@ func runClient(ctx context.Context, opts *options, args []string) error {
 	}
 	if opts.port != 0 {
 		if opts.udp {
+			// Establish the carrier before WireGuard installs a default route.
+			// Waiting for the first local datagram used to make discovery depend
+			// on a route that the tunnel itself was in the process of creating.
+			preconnected, err := openStream(ctx)
+			if err != nil {
+				return fmt.Errorf("no route established a UDP carrier: %w", err)
+			}
+			opener := newPreconnectedStreamOpener(preconnected, openStream)
+			defer opener.Close()
 			listener, err := session.StartLocalUDPForward(
 				ctx,
 				opts.bind,
 				opts.port,
 				time.Duration(opts.udpIdleTimeout)*time.Second,
-				openStream,
+				opener.Open,
 				func(value error) {
 					diagnostic(opts, "UDP forwarding session: %v", value)
 				},
@@ -400,7 +421,7 @@ func runClient(ctx context.Context, opts *options, args []string) error {
 				return err
 			}
 			defer listener.Close()
-			diagnostic(opts, "local UDP %s -> %s:%d", listener.LocalAddr(), target, service)
+			diagnostic(opts, "P2P UDP carrier established; local UDP %s -> %s:%d", listener.LocalAddr(), target, service)
 			<-ctx.Done()
 			return nil
 		}
@@ -434,6 +455,42 @@ func runClient(ctx context.Context, opts *options, args []string) error {
 		inactivity = time.Duration(opts.timeout) * time.Second
 	}
 	return session.Bridge(ctx, stream, os.Stdin, os.Stdout, time.Duration(opts.quitDelay)*time.Second, inactivity)
+}
+
+type preconnectedStreamOpener struct {
+	mu       sync.Mutex
+	first    session.Stream
+	fallback func(context.Context) (session.Stream, error)
+}
+
+func newPreconnectedStreamOpener(
+	first session.Stream,
+	fallback func(context.Context) (session.Stream, error),
+) *preconnectedStreamOpener {
+	return &preconnectedStreamOpener{first: first, fallback: fallback}
+}
+
+func (opener *preconnectedStreamOpener) Open(ctx context.Context) (session.Stream, error) {
+	opener.mu.Lock()
+	if opener.first != nil {
+		stream := opener.first
+		opener.first = nil
+		opener.mu.Unlock()
+		return stream, nil
+	}
+	opener.mu.Unlock()
+	return opener.fallback(ctx)
+}
+
+func (opener *preconnectedStreamOpener) Close() error {
+	opener.mu.Lock()
+	stream := opener.first
+	opener.first = nil
+	opener.mu.Unlock()
+	if stream != nil {
+		return stream.Close()
+	}
+	return nil
 }
 
 type streamAttempt struct {

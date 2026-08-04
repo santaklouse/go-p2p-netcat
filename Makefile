@@ -11,6 +11,7 @@ build:
 test:
 	GOTOOLCHAIN=auto $(GO) test ./...
 	bash deploy/deploy_test.sh
+	bash deploy/wireguard-full-tunnel_test.sh
 
 test-docker:
 	bash scripts/docker_test.sh

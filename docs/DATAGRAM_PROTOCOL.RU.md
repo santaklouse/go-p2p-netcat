@@ -60,8 +60,10 @@ stream integrity, поэтому ещё один frame checksum добавил �
 Клиент связывает один локальный UDP-порт. Ключ association — полный локальный
 source address и port, возвращённые UDP socket.
 
-1. Первый пакет source создаёт P2P datagram stream.
-2. Пакеты этого source стоят в порядке поступления, пока устанавливается route.
+1. Клиент заранее устанавливает один carrier до объявления локального socket;
+   первый source занимает этот stream. Последующие sources создают независимые
+   P2P datagram streams.
+2. Пакеты source стоят в порядке поступления, пока открывается его stream.
 3. Listener открывает один connected UDP socket к настроенной фиксированной
    цели.
 4. Ответы цели кодируются в тот же P2P-stream и возвращаются исходному
@@ -126,6 +128,10 @@ handshakes и relay load. Долгоживущая association значител�
   relay нужны, когда reachability важнее latency.
 - Защищайте private pairing token listener, имеющий доступ к непубличному
   UDP-сервису.
+- Для WireGuard-клиента с `0.0.0.0/0` на Linux запускайте p2p-netcat через
+  `deploy/wireguard-full-tunnel.sh`. Предварительное соединение устраняет
+  startup race, а policy rule отдельного UID также защищает DNS, signaling,
+  ICE и reconnect после изменения default route.
 
 ## Граница браузера
 

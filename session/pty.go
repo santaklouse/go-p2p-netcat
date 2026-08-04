@@ -33,7 +33,11 @@ func PTYServer(ctx context.Context, stream Stream, verbose bool) error {
 		fmt.Fprintf(os.Stderr, "[p2p-nc] PTY login shell started, pid=%d: %s\n", command.Process.Pid, shell)
 	}
 	var writer sync.Mutex
-	errorsCh := make(chan error, 2)
+	type ptyResult struct {
+		err        error
+		fromOutput bool
+	}
+	results := make(chan ptyResult, 2)
 	go func() {
 		buffer := make([]byte, 32*1024)
 		for {
@@ -43,12 +47,12 @@ func PTYServer(ctx context.Context, stream Stream, verbose bool) error {
 				writeErr := ptyframe.WriteFrame(stream, ptyframe.FrameData, buffer[:count])
 				writer.Unlock()
 				if writeErr != nil {
-					errorsCh <- writeErr
+					results <- ptyResult{err: writeErr, fromOutput: true}
 					return
 				}
 			}
 			if readErr != nil {
-				errorsCh <- readErr
+				results <- ptyResult{err: readErr, fromOutput: true}
 				return
 			}
 		}
@@ -57,24 +61,24 @@ func PTYServer(ctx context.Context, stream Stream, verbose bool) error {
 		for {
 			frame, readErr := ptyframe.ReadFrame(stream)
 			if readErr != nil {
-				errorsCh <- readErr
+				results <- ptyResult{err: readErr}
 				return
 			}
 			switch frame.Type {
 			case ptyframe.FrameData:
 				if _, writeErr := terminal.Write(frame.Data); writeErr != nil {
-					errorsCh <- writeErr
+					results <- ptyResult{err: writeErr}
 					return
 				}
 			case ptyframe.FrameResize:
 				columns, rows, resizeErr := ptyframe.DecodeResize(frame.Data)
 				if resizeErr != nil {
-					errorsCh <- resizeErr
+					results <- ptyResult{err: resizeErr}
 					return
 				}
 				_ = pty.Setsize(terminal, &pty.Winsize{Cols: columns, Rows: rows})
 			default:
-				errorsCh <- fmt.Errorf("unknown PTY frame: %d", frame.Type)
+				results <- ptyResult{err: fmt.Errorf("unknown PTY frame: %d", frame.Type)}
 				return
 			}
 		}
@@ -82,15 +86,30 @@ func PTYServer(ctx context.Context, stream Stream, verbose bool) error {
 	select {
 	case <-ctx.Done():
 		_ = command.Process.Kill()
+		_ = command.Wait()
 		return ctx.Err()
-	case err := <-errorsCh:
+	case result := <-results:
+		if result.fromOutput && isPTYEnd(result.err) {
+			// Unix PTY masters report EIO, rather than EOF, after the last
+			// slave descriptor is closed. This is the normal result of `exit`
+			// or Ctrl-D in the login shell. Send a graceful half-close before
+			// the surrounding session closes the stream so that the client can
+			// consume the final "logout" output and observe EOF.
+			closeErr := stream.CloseWrite()
+			_ = command.Wait()
+			return closeErr
+		}
 		_ = command.Process.Kill()
 		_ = command.Wait()
-		if errors.Is(err, io.EOF) {
+		if errors.Is(result.err, io.EOF) {
 			return nil
 		}
-		return err
+		return result.err
 	}
+}
+
+func isPTYEnd(err error) bool {
+	return errors.Is(err, io.EOF) || errors.Is(err, syscall.EIO)
 }
 
 func PTYClient(ctx context.Context, stream Stream) error {

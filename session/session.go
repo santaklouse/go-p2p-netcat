@@ -49,6 +49,11 @@ func Bridge(ctx context.Context, stream Stream, input io.Reader, output io.Write
 	}()
 	go func() {
 		_, err := io.Copy(&activityWriter{writer: output, activity: reportActivity}, stream)
+		if closeWriter, ok := output.(interface{ CloseWrite() error }); ok {
+			if closeErr := closeWriter.CloseWrite(); err == nil {
+				err = closeErr
+			}
+		}
 		errorsCh <- err
 	}()
 
