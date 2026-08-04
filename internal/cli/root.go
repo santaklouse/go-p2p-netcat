@@ -15,6 +15,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/santaklouse/go-p2p-netcat/internal/identity"
+	"github.com/santaklouse/go-p2p-netcat/internal/listenerlock"
 	"github.com/santaklouse/go-p2p-netcat/nativewebrtc"
 	p2pnode "github.com/santaklouse/go-p2p-netcat/p2p"
 	"github.com/santaklouse/go-p2p-netcat/protocol/admission"
@@ -204,18 +205,6 @@ func validateOptions(command *cobra.Command, opts *options, args []string) error
 }
 
 func runListener(ctx context.Context, opts *options, args []string) error {
-	identityPath := opts.identity
-	if identityPath == "" {
-		identityPath = identity.DefaultPath()
-	}
-	privateKey, err := identity.LoadOrCreate(identityPath)
-	if err != nil {
-		return err
-	}
-	peerID, err := peer.IDFromPrivateKey(privateKey)
-	if err != nil {
-		return err
-	}
 	token, err := loadToken(opts)
 	if err != nil {
 		return err
@@ -226,6 +215,24 @@ func runListener(ctx context.Context, opts *options, args []string) error {
 	} else if token != nil {
 		service = token.Service
 	}
+	if err != nil {
+		return err
+	}
+	portLock, err := listenerlock.Acquire(service)
+	if err != nil {
+		return err
+	}
+	defer portLock.Close()
+
+	identityPath := opts.identity
+	if identityPath == "" {
+		identityPath = identity.DefaultPath()
+	}
+	privateKey, err := identity.LoadOrCreate(identityPath)
+	if err != nil {
+		return err
+	}
+	peerID, err := peer.IDFromPrivateKey(privateKey)
 	if err != nil {
 		return err
 	}

@@ -303,6 +303,14 @@ Start a listener:
 ./p2p-nc -l 8080
 ```
 
+Only one local listener can own a logical port at a time. This applies across
+raw, PTY, exec, SOCKS, TCP-forwarding, and UDP-forwarding modes. A second
+listener exits with status `1` and reports:
+
+```text
+[p2p-nc] error: logical port 8080 already has an active listener
+```
+
 The command prints its PeerId and available multiaddrs to `stderr`. Connect
 from the client:
 

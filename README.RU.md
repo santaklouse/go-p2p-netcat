@@ -303,6 +303,14 @@ go version
 ./p2p-nc -l 8080
 ```
 
+Один логический порт может принадлежать только одному локальному слушателю.
+Правило общее для raw, PTY, exec, SOCKS, TCP-forwarding и UDP-forwarding.
+Второй слушатель завершится с кодом `1` и сообщением:
+
+```text
+[p2p-nc] error: logical port 8080 already has an active listener
+```
+
 Команда выводит PeerId и доступные multiaddr в `stderr`. На клиенте:
 
 ```bash

@@ -95,6 +95,10 @@ and `Reset` is the abort operation. Keep tests for both behaviors.
   listener in client mode.
 - `-u` requires `-p` and selects framed fixed-destination UDP forwarding.
 - `-i`, `-e`, `-S`, TCP/UDP forwarding, and `-z` are mutually exclusive modes.
+- Only one local listener may own a logical port at a time, regardless of
+  listener mode or byte-stream/datagram protocol. `internal/listenerlock`
+  enforces this across processes with an OS file lock; persistent lock files
+  are harmless because ownership is released when the process exits.
 - `--quit-delay` applies only to raw streams.
 - Tor requires an explicit TCP/WS/WSS relay and disables direct UDP transports
   and public discovery.
