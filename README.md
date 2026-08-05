@@ -503,6 +503,7 @@ adb shell /data/local/tmp/p2p-nc --version
 
 ## Documentation
 
+- Product and technical presentation: [mobile PDF](docs/p2p-netcat-product-technical-overview-en-mobile.pdf) · [16:9 PDF](docs/p2p-netcat-product-technical-overview-en.pdf) · [PPTX](docs/p2p-netcat-product-technical-overview-en.pptx)
 - [Practical usage cookbook](docs/USE_CASES.md): OpenSSH, OpenVPN,
   TCP/UDP forwarding, SOCKS, WireGuard, file transfer, relay, and
   systemd examples.

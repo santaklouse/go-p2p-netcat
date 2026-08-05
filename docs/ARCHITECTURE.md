@@ -2,6 +2,12 @@
 
 [Русская версия](ARCHITECTURE.RU.md)
 
+View the product and technical presentation as a portrait [mobile PDF](p2p-netcat-product-technical-overview-en-mobile.pdf),
+the original [16:9 PDF](p2p-netcat-product-technical-overview-en.pdf), or download the editable
+[PPTX](p2p-netcat-product-technical-overview-en.pptx) for a visual overview
+of real-world use cases, routing, native WebRTC, UDP forwarding, WireGuard full tunnel,
+deployment, and reliability checks.
+
 This repository combines the canonical Go CLI/network implementation with the
 browser-safe TypeScript core and static PWA.
 

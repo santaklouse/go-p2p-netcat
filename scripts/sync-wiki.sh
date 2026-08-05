@@ -37,6 +37,18 @@ p2pnc_wiki_convert() {
 	local destination="$2"
 
 	sed \
+		-e 's|(docs/p2p-netcat-product-technical-overview-en-mobile.pdf)|(https://santaklouse.github.io/go-p2p-netcat/docs/p2p-netcat-product-technical-overview-en-mobile.pdf)|g' \
+		-e 's|(docs/p2p-netcat-product-technical-overview-ru-mobile.pdf)|(https://santaklouse.github.io/go-p2p-netcat/docs/p2p-netcat-product-technical-overview-ru-mobile.pdf)|g' \
+		-e 's|(p2p-netcat-product-technical-overview-en-mobile.pdf)|(https://santaklouse.github.io/go-p2p-netcat/docs/p2p-netcat-product-technical-overview-en-mobile.pdf)|g' \
+		-e 's|(p2p-netcat-product-technical-overview-ru-mobile.pdf)|(https://santaklouse.github.io/go-p2p-netcat/docs/p2p-netcat-product-technical-overview-ru-mobile.pdf)|g' \
+		-e 's|(docs/p2p-netcat-product-technical-overview-en.pdf)|(https://santaklouse.github.io/go-p2p-netcat/docs/p2p-netcat-product-technical-overview-en.pdf)|g' \
+		-e 's|(docs/p2p-netcat-product-technical-overview-en.pptx)|(https://santaklouse.github.io/go-p2p-netcat/docs/p2p-netcat-product-technical-overview-en.pptx)|g' \
+		-e 's|(docs/p2p-netcat-product-technical-overview-ru.pdf)|(https://santaklouse.github.io/go-p2p-netcat/docs/p2p-netcat-product-technical-overview-ru.pdf)|g' \
+		-e 's|(docs/p2p-netcat-product-technical-overview-ru.pptx)|(https://santaklouse.github.io/go-p2p-netcat/docs/p2p-netcat-product-technical-overview-ru.pptx)|g' \
+		-e 's|(p2p-netcat-product-technical-overview-en.pdf)|(https://santaklouse.github.io/go-p2p-netcat/docs/p2p-netcat-product-technical-overview-en.pdf)|g' \
+		-e 's|(p2p-netcat-product-technical-overview-en.pptx)|(https://santaklouse.github.io/go-p2p-netcat/docs/p2p-netcat-product-technical-overview-en.pptx)|g' \
+		-e 's|(p2p-netcat-product-technical-overview-ru.pdf)|(https://santaklouse.github.io/go-p2p-netcat/docs/p2p-netcat-product-technical-overview-ru.pdf)|g' \
+		-e 's|(p2p-netcat-product-technical-overview-ru.pptx)|(https://santaklouse.github.io/go-p2p-netcat/docs/p2p-netcat-product-technical-overview-ru.pptx)|g' \
 		-e 's|docs/ARCHITECTURE.RU.md|Architecture-RU|g' \
 		-e 's|docs/ARCHITECTURE.md|Architecture|g' \
 		-e 's|docs/DATAGRAM_PROTOCOL.RU.md|Datagram-Protocol-RU|g' \

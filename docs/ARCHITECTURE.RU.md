@@ -2,6 +2,12 @@
 
 [English version](ARCHITECTURE.md)
 
+Откройте презентацию о продукте и архитектуре как книжный [мобильный PDF](p2p-netcat-product-technical-overview-ru-mobile.pdf),
+исходный [PDF 16:9](p2p-netcat-product-technical-overview-ru.pdf) или скачайте редактируемый
+[PPTX](p2p-netcat-product-technical-overview-ru.pptx): это визуальный обзор
+маршрутизации, native WebRTC, UDP forwarding, WireGuard full tunnel, развёртывания
+и проверок надёжности.
+
 Репозиторий объединяет каноническую Go-реализацию CLI/сети, browser-safe
 TypeScript core и статический PWA.
 

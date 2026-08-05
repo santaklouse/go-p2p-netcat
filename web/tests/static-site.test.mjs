@@ -26,15 +26,51 @@ test("builds as a static PWA without a server bundle", async () => {
   await assert.rejects(access(new URL("../dist/server/", import.meta.url)));
 });
 
-test("exposes project status badges in the README and PWA", async () => {
-  const [readme, readmeRu, page, localization, styles, sourceHtml, builtHtml] = await Promise.all([
+test("exposes project status badges and presentation links in the README and PWA", async () => {
+  const [
+    readme,
+    readmeRu,
+    architecture,
+    architectureRu,
+    page,
+    localization,
+    styles,
+    sourceHtml,
+    builtHtml,
+    presentationRuPptx,
+    presentationEnPptx,
+    presentationRuPdf,
+    presentationEnPdf,
+    presentationRuMobile,
+    presentationEnMobile,
+    publishedRuPptx,
+    publishedEnPptx,
+    publishedRuPdf,
+    publishedEnPdf,
+    publishedRuMobile,
+    publishedEnMobile,
+  ] = await Promise.all([
     readFile(new URL("../../README.md", import.meta.url), "utf8"),
     readFile(new URL("../../README.RU.md", import.meta.url), "utf8"),
+    readFile(new URL("../../docs/ARCHITECTURE.md", import.meta.url), "utf8"),
+    readFile(new URL("../../docs/ARCHITECTURE.RU.md", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/i18n.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../index.html", import.meta.url), "utf8"),
     readFile(new URL("../dist/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../../docs/p2p-netcat-product-technical-overview-ru.pptx", import.meta.url)),
+    readFile(new URL("../../docs/p2p-netcat-product-technical-overview-en.pptx", import.meta.url)),
+    readFile(new URL("../../docs/p2p-netcat-product-technical-overview-ru.pdf", import.meta.url)),
+    readFile(new URL("../../docs/p2p-netcat-product-technical-overview-en.pdf", import.meta.url)),
+    readFile(new URL("../../docs/p2p-netcat-product-technical-overview-ru-mobile.pdf", import.meta.url)),
+    readFile(new URL("../../docs/p2p-netcat-product-technical-overview-en-mobile.pdf", import.meta.url)),
+    readFile(new URL("../dist/docs/p2p-netcat-product-technical-overview-ru.pptx", import.meta.url)),
+    readFile(new URL("../dist/docs/p2p-netcat-product-technical-overview-en.pptx", import.meta.url)),
+    readFile(new URL("../dist/docs/p2p-netcat-product-technical-overview-ru.pdf", import.meta.url)),
+    readFile(new URL("../dist/docs/p2p-netcat-product-technical-overview-en.pdf", import.meta.url)),
+    readFile(new URL("../dist/docs/p2p-netcat-product-technical-overview-ru-mobile.pdf", import.meta.url)),
+    readFile(new URL("../dist/docs/p2p-netcat-product-technical-overview-en-mobile.pdf", import.meta.url)),
   ]);
 
   for (const document of [readme, readmeRu]) {
@@ -46,12 +82,59 @@ test("exposes project status badges in the README and PWA", async () => {
     assert.match(document, /GHCR-published/);
     assert.match(document, /img\.shields\.io\/github\/license/);
   }
+  assert.match(readme, /docs\/p2p-netcat-product-technical-overview-en-mobile\.pdf/);
+  assert.match(readme, /docs\/p2p-netcat-product-technical-overview-en\.pdf/);
+  assert.match(readme, /docs\/p2p-netcat-product-technical-overview-en\.pptx/);
+  assert.match(readmeRu, /docs\/p2p-netcat-product-technical-overview-ru-mobile\.pdf/);
+  assert.match(readmeRu, /docs\/p2p-netcat-product-technical-overview-ru\.pdf/);
+  assert.match(readmeRu, /docs\/p2p-netcat-product-technical-overview-ru\.pptx/);
+  assert.match(architecture, /\(p2p-netcat-product-technical-overview-en-mobile\.pdf\)/);
+  assert.match(architecture, /\(p2p-netcat-product-technical-overview-en\.pdf\)/);
+  assert.match(architecture, /\(p2p-netcat-product-technical-overview-en\.pptx\)/);
+  assert.match(architectureRu, /\(p2p-netcat-product-technical-overview-ru-mobile\.pdf\)/);
+  assert.match(architectureRu, /\(p2p-netcat-product-technical-overview-ru\.pdf\)/);
+  assert.match(architectureRu, /\(p2p-netcat-product-technical-overview-ru\.pptx\)/);
+  const sourceArtifacts = [presentationRuPptx, presentationEnPptx, presentationRuPdf, presentationEnPdf, presentationRuMobile, presentationEnMobile];
+  const publishedArtifacts = [publishedRuPptx, publishedEnPptx, publishedRuPdf, publishedEnPdf, publishedRuMobile, publishedEnMobile];
+  for (const artifact of sourceArtifacts) assert.ok(artifact.byteLength > 0);
+  for (let index = 0; index < sourceArtifacts.length; index += 1) {
+    assert.equal(publishedArtifacts[index].byteLength, sourceArtifacts[index].byteLength);
+  }
+  assert.equal(presentationRuPdf.subarray(0, 5).toString(), "%PDF-");
+  assert.equal(presentationEnPdf.subarray(0, 5).toString(), "%PDF-");
+  assert.equal(presentationRuMobile.subarray(0, 5).toString(), "%PDF-");
+  assert.equal(presentationEnMobile.subarray(0, 5).toString(), "%PDF-");
+  assert.equal(presentationRuPptx.subarray(0, 2).toString(), "PK");
+  assert.equal(presentationEnPptx.subarray(0, 2).toString(), "PK");
   assert.match(page, /const PROJECT_BADGES/);
+  assert.match(page, /const PRESENTATION_BASE_URL/);
+  assert.match(page, /const PRESENTATION_RU_PDF_URL/);
+  assert.match(page, /const PRESENTATION_EN_PDF_URL/);
+  assert.match(page, /const PRESENTATION_RU_MOBILE_URL/);
+  assert.match(page, /const PRESENTATION_EN_MOBILE_URL/);
+  assert.match(page, /const PRESENTATION_RU_PPTX_URL/);
+  assert.match(page, /const PRESENTATION_EN_PPTX_URL/);
+  assert.match(page, /p2p-netcat-product-technical-overview-ru\.pdf/);
+  assert.match(page, /p2p-netcat-product-technical-overview-en\.pdf/);
+  assert.match(page, /p2p-netcat-product-technical-overview-ru\.pptx/);
+  assert.match(page, /p2p-netcat-product-technical-overview-en\.pptx/);
+  assert.match(page, /language === "ru" \? PRESENTATION_RU_PDF_URL : PRESENTATION_EN_PDF_URL/);
+  assert.match(page, /language === "ru" \? PRESENTATION_RU_MOBILE_URL : PRESENTATION_EN_MOBILE_URL/);
+  assert.match(page, /language === "ru" \? PRESENTATION_RU_PPTX_URL : PRESENTATION_EN_PPTX_URL/);
+  assert.match(page, /copy\.presentationGuide/);
+  assert.match(page, /copy\.presentationMobileGuide/);
+  assert.match(page, /copy\.presentationSourceGuide/);
   assert.match(page, /className="project-badges"/);
   assert.match(page, /aria-label=\{copy\.projectBadgesAria\}/);
   assert.match(page, /alt=\{badge\.alt\}/);
   assert.match(localization, /projectBadgesAria: "Project status and resources"/);
   assert.match(localization, /projectBadgesAria: "Статус и ресурсы проекта"/);
+  assert.match(localization, /presentationGuide: "Product & technical deck \(PDF\) ↗"/);
+  assert.match(localization, /presentationMobileGuide: "Mobile PDF ↗"/);
+  assert.match(localization, /presentationSourceGuide: "PPTX source ↓"/);
+  assert.match(localization, /presentationGuide: "Презентация о продукте и архитектуре \(PDF\) ↗"/);
+  assert.match(localization, /presentationMobileGuide: "Мобильный PDF ↗"/);
+  assert.match(localization, /presentationSourceGuide: "Исходник PPTX ↓"/);
   assert.match(styles, /\.project-badge:focus-visible/);
   for (const html of [sourceHtml, builtHtml]) {
     assert.match(html, /img-src 'self' data: https:\/\/github\.com https:\/\/img\.shields\.io https:\/\/pkg\.go\.dev https:\/\/goreportcard\.com/);

@@ -502,6 +502,7 @@ adb shell /data/local/tmp/p2p-nc --version
 
 ## Документация
 
+- Презентация о продукте и архитектуре: [мобильный PDF](docs/p2p-netcat-product-technical-overview-ru-mobile.pdf) · [PDF 16:9](docs/p2p-netcat-product-technical-overview-ru.pdf) · [PPTX](docs/p2p-netcat-product-technical-overview-ru.pptx)
 - [Практические сценарии](docs/USE_CASES.RU.md): OpenSSH, OpenVPN,
   TCP/UDP forwarding, SOCKS, WireGuard, передача файлов, relay и
   systemd.

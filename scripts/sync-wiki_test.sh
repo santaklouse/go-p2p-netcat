@@ -43,4 +43,26 @@ grep -Fq '[[Practical use cases|Use-Cases]]' \
 grep -Fq '[[Практические сценарии|Use-Cases-RU]]' \
 	"${p2pnc_wiki_test_destination}/_Sidebar.md"
 
+for p2pnc_wiki_test_page in Home.md Architecture.md; do
+	grep -Fq 'https://santaklouse.github.io/go-p2p-netcat/docs/p2p-netcat-product-technical-overview-en-mobile.pdf' \
+		"${p2pnc_wiki_test_destination}/${p2pnc_wiki_test_page}"
+	grep -Fq 'https://santaklouse.github.io/go-p2p-netcat/docs/p2p-netcat-product-technical-overview-en.pdf' \
+		"${p2pnc_wiki_test_destination}/${p2pnc_wiki_test_page}"
+	grep -Fq 'https://santaklouse.github.io/go-p2p-netcat/docs/p2p-netcat-product-technical-overview-en.pptx' \
+		"${p2pnc_wiki_test_destination}/${p2pnc_wiki_test_page}"
+	! grep -Fq 'p2p-netcat-product-technical-overview-ru.' \
+		"${p2pnc_wiki_test_destination}/${p2pnc_wiki_test_page}"
+done
+
+for p2pnc_wiki_test_page in Home-RU.md Architecture-RU.md; do
+	grep -Fq 'https://santaklouse.github.io/go-p2p-netcat/docs/p2p-netcat-product-technical-overview-ru-mobile.pdf' \
+		"${p2pnc_wiki_test_destination}/${p2pnc_wiki_test_page}"
+	grep -Fq 'https://santaklouse.github.io/go-p2p-netcat/docs/p2p-netcat-product-technical-overview-ru.pdf' \
+		"${p2pnc_wiki_test_destination}/${p2pnc_wiki_test_page}"
+	grep -Fq 'https://santaklouse.github.io/go-p2p-netcat/docs/p2p-netcat-product-technical-overview-ru.pptx' \
+		"${p2pnc_wiki_test_destination}/${p2pnc_wiki_test_page}"
+	! grep -Fq 'p2p-netcat-product-technical-overview-en.' \
+		"${p2pnc_wiki_test_destination}/${p2pnc_wiki_test_page}"
+done
+
 printf 'Wiki synchronization tests passed\n'

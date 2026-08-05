@@ -1,6 +1,36 @@
+import { copyFile, mkdir } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
+import type { Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+
+const webRoot = dirname(fileURLToPath(import.meta.url));
+const presentationFiles = [
+  "p2p-netcat-product-technical-overview-en-mobile.pdf",
+  "p2p-netcat-product-technical-overview-en.pdf",
+  "p2p-netcat-product-technical-overview-en.pptx",
+  "p2p-netcat-product-technical-overview-ru-mobile.pdf",
+  "p2p-netcat-product-technical-overview-ru.pdf",
+  "p2p-netcat-product-technical-overview-ru.pptx",
+];
+
+function copyPresentationArtifacts(): Plugin {
+  return {
+    name: "copy-presentation-artifacts",
+    apply: "build",
+    async closeBundle() {
+      const targetDirectory = resolve(webRoot, "dist/docs");
+      await mkdir(targetDirectory, { recursive: true });
+      await Promise.all(
+        presentationFiles.map((file) =>
+          copyFile(resolve(webRoot, "../docs", file), resolve(targetDirectory, file)),
+        ),
+      );
+    },
+  };
+}
 
 function normalizeBase(value: string | undefined) {
   if (!value || value === "/") return "/";
@@ -65,6 +95,7 @@ export default defineConfig(() => {
         },
         devOptions: { enabled: true },
       }),
+      copyPresentationArtifacts(),
     ],
     build: {
       target: "es2022",
