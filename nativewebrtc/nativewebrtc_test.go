@@ -355,7 +355,9 @@ func TestCompleteNativeEndpointHandshakeAndData(t *testing.T) {
 			select {
 			case offer := <-serverSignal.Events():
 				if offer.Type == "offer" {
-					p2p, answerErr := answerNativeOffer(ctx, serverSignal, privateKey, 31337, offer)
+					p2p, answerErr := answerNativeOffer(
+						ctx, serverSignal, privateKey, 31337, []string{}, offer,
+					)
 					if answerErr != nil {
 						return
 					}
@@ -368,7 +370,7 @@ func TestCompleteNativeEndpointHandshakeAndData(t *testing.T) {
 			}
 		}
 	}()
-	clientConnection, err := connectWithSession(ctx, clientSignal, id, 31337)
+	clientConnection, err := connectWithSession(ctx, clientSignal, id, 31337, []string{})
 	if err != nil {
 		t.Fatal(err)
 	}

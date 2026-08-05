@@ -144,16 +144,16 @@ unnecessary because this is now the only WebRTC implementation.
 
 The authentication transcript intentionally retains its historical
 `p2p-netcat/trystero-auth/v1` domain string. Changing it would break wire
-compatibility between existing native peers and the planned Go port. It is a
-frozen protocol value, not a package import or runtime dependency.
+compatibility with existing JavaScript and browser peers. It is a frozen
+protocol value, not a package import or runtime dependency.
 
 ## Automated soak matrix
 
-The repository contains a deterministic runner built on real
-`RTCPeerConnection` and `RTCDataChannel` objects from `@roamhq/wrtc`:
+The repository contains a deterministic Go runner built on the real Pion
+`PeerConnection` and `DataChannel` used by the production endpoint:
 
 ```bash
-npm run soak:webrtc -- \
+go run ./cmd/webrtc-soak \
   --profile smoke \
   --report artifacts/webrtc-soak-local.json
 ```
@@ -171,12 +171,14 @@ Profiles:
 transfer is binary, bidirectional, flow-controlled, and verified by SHA-256.
 The runner covers:
 
-- Nostr trickle ICE with candidates intentionally able to overtake the offer;
+- the Nostr signaling path under delayed-offer latency and jitter (the
+  historical scenario identifier remains `nostr-trickle` for report and CLI
+  compatibility; the Go endpoint currently publishes complete local SDP);
 - WebTorrent-compatible complete non-trickle SDP;
 - simultaneous adapter attempts and duplicate offer delivery;
 - one signaling adapter failing while the other wins;
 - forced peer-connection loss, rebinding, and data transfer through the same
-  logical `WebRtcStream`.
+  logical `nativewebrtc.Stream`.
 
 `.github/workflows/webrtc-soak.yml` runs weekly with the `soak` profile on
 Ubuntu and macOS. A manual dispatch can select `smoke`, `ci`, or `soak`, and

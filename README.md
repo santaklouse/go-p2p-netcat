@@ -109,6 +109,18 @@ same application protocols and can interoperate with the old CLI and browser
 client. Browser code remains TypeScript because it runs directly in browser
 Web APIs; it is now versioned and deployed from this repository.
 
+The native WebRTC stability matrix was ported from Node.js to a real-Pion Go
+runner. Run the smoke profile locally with:
+
+```bash
+go run ./cmd/webrtc-soak \
+  --profile smoke \
+  --report artifacts/webrtc-soak-local.json
+```
+
+Profiles, scenarios, JSON output, and limitations are documented in the
+[native WebRTC migration record](docs/WEBRTC_MIGRATION.md).
+
 ## Installation
 
 The current stable version is `v0.5.1`. Release archives contain the
@@ -453,6 +465,17 @@ and both admission frames.
 Every push to `main`, including merged pull requests, and every semantic
 `v*.*.*` tag runs `.github/workflows/release-main.yml`. After tests and static
 analysis pass, the workflow publishes a GitHub Release with these builds:
+
+Before creating a release tag, run the WebRTC `ci` profile:
+
+```bash
+go run ./cmd/webrtc-soak --profile ci \
+  --report artifacts/webrtc-soak-release.json
+```
+
+The separate `.github/workflows/webrtc-soak.yml` workflow runs the longer
+`soak` profile every Monday on Ubuntu and macOS and supports manual profile
+selection.
 
 - Linux: `amd64`, `arm64`;
 - macOS: `amd64`, `arm64`;

@@ -1,6 +1,7 @@
 /p2p-nc
 /pnc
 /dist/
+/artifacts/
 /packages/core/node_modules/
 /web/node_modules/
 /web/dist/

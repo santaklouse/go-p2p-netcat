@@ -195,9 +195,11 @@ func (p *nativePeer) Close() error {
 }
 
 type Connection struct {
-	Stream    *Stream
-	Signaling string
-	close     func() error
+	Stream      *Stream
+	Signaling   string
+	close       func() error
+	interrupt   func() error
+	reconnected <-chan struct{}
 }
 
 type peerLink struct {
@@ -265,11 +267,52 @@ func (l *peerLink) Close() error {
 	return nil
 }
 
+func (l *peerLink) Interrupt() error {
+	l.mu.Lock()
+	peer := l.peer
+	l.mu.Unlock()
+	if peer == nil {
+		return errors.New("native WebRTC transport is already reconnecting")
+	}
+	return peer.Close()
+}
+
 func (c *Connection) Close() error {
 	if c == nil || c.close == nil {
 		return nil
 	}
 	return c.close()
+}
+
+// Reconnect closes only the active PeerConnection and waits until the endpoint
+// has rebound a replacement transport to the same logical Stream. It is useful
+// for network-change handling and deterministic recovery tests.
+func (c *Connection) Reconnect(ctx context.Context) error {
+	if c == nil || c.reconnected == nil {
+		return errors.New("native WebRTC connection does not expose reconnect state")
+	}
+	for {
+		select {
+		case <-c.reconnected:
+			continue
+		default:
+			goto drained
+		}
+	}
+
+drained:
+	if c.interrupt == nil {
+		return errors.New("native WebRTC connection cannot be interrupted")
+	}
+	if err := c.interrupt(); err != nil {
+		return err
+	}
+	select {
+	case <-c.reconnected:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Connect establishes the JavaScript-compatible native WebRTC data channel
@@ -298,6 +341,42 @@ func Connect(
 	if err != nil {
 		return nil, err
 	}
+	return ConnectWithSignalingSessions(
+		ctx, expected, service, timeout, copyICEServers(DefaultICEServers), sessions,
+	)
+}
+
+// ConnectWithSignalingSessions establishes a native WebRTC connection through
+// caller-provided signaling adapters. The returned connection owns all
+// sessions and closes the losing adapters after the first successful race.
+func ConnectWithSignalingSessions(
+	ctx context.Context,
+	expected peer.ID,
+	service uint16,
+	timeout time.Duration,
+	iceServers []string,
+	sessions []SignalingSession,
+) (*Connection, error) {
+	if expected == "" {
+		return nil, errors.New("expected native WebRTC PeerId is required")
+	}
+	if service == 0 {
+		return nil, errors.New("logical port must be between 1 and 65535")
+	}
+	if len(sessions) == 0 {
+		return nil, errors.New("at least one native WebRTC signaling session is required")
+	}
+	for _, session := range sessions {
+		if session == nil {
+			return nil, errors.New("native WebRTC signaling session cannot be nil")
+		}
+	}
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	if iceServers != nil {
+		iceServers = copyICEServers(iceServers)
+	}
 	attemptCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	result := make(chan *Connection, 1)
@@ -305,7 +384,9 @@ func Connect(
 	var winnerOnce sync.Once
 	for _, signaling := range sessions {
 		go func(session SignalingSession) {
-			connection, attemptErr := connectWithSession(attemptCtx, session, expected, service)
+			connection, attemptErr := connectWithSession(
+				attemptCtx, session, expected, service, iceServers,
+			)
 			if attemptErr != nil {
 				errorsChannel <- fmt.Errorf("%s: %w", session.Name(), attemptErr)
 				return
@@ -350,14 +431,15 @@ func connectWithSession(
 	signaling SignalingSession,
 	expected peer.ID,
 	service uint16,
+	iceServers []string,
 ) (*Connection, error) {
-	iceServers := copyICEServers(DefaultICEServers)
 	p2p, err := dialAuthenticatedPeer(ctx, signaling, expected, service, iceServers)
 	if err != nil {
 		return nil, err
 	}
 	connectionCtx, cancel := context.WithCancel(context.Background())
 	link := newPeerLink(p2p)
+	reconnected := make(chan struct{}, 1)
 	var closeOnce sync.Once
 	stream := NewStream(link.Send, func() error {
 		var result error
@@ -367,9 +449,13 @@ func connectWithSession(
 		})
 		return result
 	})
-	go superviseClientConnection(connectionCtx, signaling, expected, service, iceServers, link, stream, p2p)
+	go superviseClientConnection(
+		connectionCtx, signaling, expected, service, iceServers,
+		link, stream, p2p, reconnected,
+	)
 	return &Connection{
 		Stream: stream, Signaling: signaling.Name(), close: stream.Close,
+		interrupt: link.Interrupt, reconnected: reconnected,
 	}, nil
 }
 
@@ -485,6 +571,7 @@ func superviseClientConnection(
 	link *peerLink,
 	stream *Stream,
 	current *nativePeer,
+	reconnected chan<- struct{},
 ) {
 	for {
 		_ = forwardFrames(current, stream)
@@ -516,6 +603,10 @@ func superviseClientConnection(
 			stream.fail(err, true)
 			_ = link.Close()
 			return
+		}
+		select {
+		case reconnected <- struct{}{}:
+		default:
 		}
 		current = next
 	}
@@ -591,12 +682,53 @@ func StartListener(
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithCancel(parent)
-	sessions, err := createSessions(ctx, room, signalingPeerID, token, nostrURLs, torrentURLs)
+	sessions, err := createSessions(parent, room, signalingPeerID, token, nostrURLs, torrentURLs)
 	if err != nil {
-		cancel()
 		return nil, err
 	}
+	listener, err := StartListenerWithSignalingSessions(
+		parent, privateKey, service, nil, sessions, onStream,
+	)
+	if err != nil {
+		for _, session := range sessions {
+			_ = session.Close()
+		}
+	}
+	return listener, err
+}
+
+// StartListenerWithSignalingSessions starts a native WebRTC listener with
+// caller-provided signaling adapters. The listener owns and closes every
+// session after this function succeeds.
+func StartListenerWithSignalingSessions(
+	parent context.Context,
+	privateKey crypto.PrivKey,
+	service uint16,
+	iceServers []string,
+	sessions []SignalingSession,
+	onStream func(*Stream, string),
+) (*Listener, error) {
+	if privateKey == nil {
+		return nil, errors.New("libp2p private key is required")
+	}
+	if _, err := peer.IDFromPrivateKey(privateKey); err != nil {
+		return nil, err
+	}
+	if service == 0 {
+		return nil, errors.New("logical port must be between 1 and 65535")
+	}
+	if len(sessions) == 0 {
+		return nil, errors.New("at least one native WebRTC signaling session is required")
+	}
+	for _, session := range sessions {
+		if session == nil {
+			return nil, errors.New("native WebRTC signaling session cannot be nil")
+		}
+	}
+	if iceServers != nil {
+		iceServers = copyICEServers(iceServers)
+	}
+	ctx, cancel := context.WithCancel(parent)
 	listener := &Listener{
 		cancel: cancel, sessions: sessions,
 		streams: make(map[string]*listenerStream), onStream: onStream,
@@ -610,7 +742,9 @@ func StartListener(
 				case signal := <-signaling.Events():
 					if signal.Type == "offer" {
 						go func() {
-							p2p, acceptErr := answerNativeOffer(ctx, signaling, privateKey, service, signal)
+							p2p, acceptErr := answerNativeOffer(
+								ctx, signaling, privateKey, service, iceServers, signal,
+							)
 							if acceptErr == nil {
 								listener.activate(signal.From, p2p)
 							}
@@ -652,11 +786,12 @@ func answerNativeOffer(
 	signaling SignalingSession,
 	privateKey crypto.PrivKey,
 	service uint16,
+	iceServers []string,
 	offer Signal,
 ) (*nativePeer, error) {
 	attemptCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	p2p, err := newNativePeer(false, nil)
+	p2p, err := newNativePeer(false, iceServers)
 	if err != nil {
 		return nil, err
 	}

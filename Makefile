@@ -1,8 +1,10 @@
 GO ?= go
 BINARY ?= p2p-nc
 ALIAS ?= pnc
+SOAK_PROFILE ?= smoke
+SOAK_REPORT ?= artifacts/webrtc-soak-local.json
 
-.PHONY: build test test-docker vet fmt check clean
+.PHONY: build test test-docker soak-webrtc vet fmt check clean
 
 build:
 	GOTOOLCHAIN=auto $(GO) build -o $(BINARY) ./cmd/p2p-nc
@@ -15,6 +17,11 @@ test:
 
 test-docker:
 	bash scripts/docker_test.sh
+
+soak-webrtc:
+	GOTOOLCHAIN=auto $(GO) run ./cmd/webrtc-soak \
+		--profile $(SOAK_PROFILE) \
+		--report $(SOAK_REPORT)
 
 vet:
 	GOTOOLCHAIN=auto $(GO) vet ./...

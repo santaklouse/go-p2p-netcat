@@ -141,16 +141,16 @@ p2p-nc -i -v 12D3KooWQ3uxpHgjDKE6vGmvzKS8RPbxUDLwJ7XCLaD6YXdUfbR9 31337
 
 Authentication transcript намеренно сохраняет исторический domain
 `p2p-netcat/trystero-auth/v1`. Его изменение нарушило бы wire-совместимость
-существующих native peers и будущего Go-порта. Это замороженное значение
+с существующими JavaScript- и browser-пирами. Это замороженное значение
 протокола, а не импорт пакета или runtime dependency.
 
 ## Автоматическая soak-матрица
 
-В репозитории есть детерминированный runner с настоящими
-`RTCPeerConnection` и `RTCDataChannel` из `@roamhq/wrtc`:
+В репозитории есть детерминированный Go-runner с настоящими Pion
+`PeerConnection` и `DataChannel`, используемыми production endpoint:
 
 ```bash
-npm run soak:webrtc -- \
+go run ./cmd/webrtc-soak \
   --profile smoke \
   --report artifacts/webrtc-soak-local.json
 ```
@@ -168,12 +168,14 @@ npm run soak:webrtc -- \
 Каждая передача бинарная, двунаправленная, использует flow control и
 проверяется по SHA-256. Runner проверяет:
 
-- Nostr trickle ICE, где candidates намеренно могут обогнать offer;
+- Nostr signaling при искусственной задержке offer и jitter (исторический
+  идентификатор сценария `nostr-trickle` сохранён для совместимости CLI и
+  отчётов; Go endpoint сейчас публикует полный local SDP);
 - полный non-trickle SDP, совместимый с WebTorrent tracker;
 - одновременные попытки адаптеров и дубли offer;
 - отказ одного signaling adapter при успешной работе второго;
 - принудительную потерю peer connection, повторную привязку и передачу через
-  тот же логический `WebRtcStream`.
+  тот же логический `nativewebrtc.Stream`.
 
 `.github/workflows/webrtc-soak.yml` еженедельно запускает профиль `soak` на
 Ubuntu и macOS. При ручном запуске можно выбрать `smoke`, `ci` или `soak`;

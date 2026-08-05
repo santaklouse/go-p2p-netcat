@@ -42,6 +42,7 @@ route, port mapping, or Circuit Relay.
 | `internal/app` | Process entry point, signals, streams, Tor re-exec, user-facing diagnostics |
 | `p2p` | libp2p transports, DHT, mDNS, PubSub discovery, relay routing |
 | `nativewebrtc` | Pion endpoint, Nostr/WebTorrent signaling, authenticated reconnectable stream |
+| `cmd/webrtc-soak` | Deterministic real-Pion signaling, transfer, race, outage, and reconnect matrix |
 | `session` | raw bridge, exec, TCP/UDP forwarding, SOCKS, Unix PTY, Windows ConPTY |
 | `protocol` | Admission, pairing, datagram, PTY, and route-record wire codecs |
 | `relay` | Embeddable Circuit Relay v2 server |
@@ -124,6 +125,7 @@ Run the smallest relevant tests while editing, then the complete set:
 GOTOOLCHAIN=auto go test ./...
 GOTOOLCHAIN=auto go test -race -count=1 -timeout=25m ./...
 GOTOOLCHAIN=auto go vet ./...
+GOTOOLCHAIN=auto go run ./cmd/webrtc-soak --profile smoke
 bash deploy/deploy_test.sh
 bash deploy/wireguard-full-tunnel_test.sh
 bash scripts/sync-wiki_test.sh

@@ -109,6 +109,18 @@ Go-пиры дополнительно поддерживают framed UDP forwa
 остаётся на TypeScript, поскольку исполняется непосредственно через Web API
 браузера, но теперь версионируется и развёртывается из этого репозитория.
 
+Матрица стабильности native WebRTC перенесена с Node.js на Go-runner с
+настоящим Pion. Локальный smoke-профиль запускается так:
+
+```bash
+go run ./cmd/webrtc-soak \
+  --profile smoke \
+  --report artifacts/webrtc-soak-local.json
+```
+
+Профили, сценарии, JSON-отчёт и ограничения описаны в
+[документе о native WebRTC](docs/WEBRTC_MIGRATION.RU.md).
+
 ## Установка
 
 Текущая стабильная версия — `v0.5.1`. Архив релиза содержит исполняемые файлы
@@ -452,6 +464,17 @@ frames.
 `v*.*.*` запускает `.github/workflows/release-main.yml`. После успешных тестов
 и статического анализа workflow публикует GitHub Release со следующими
 сборками:
+
+Перед созданием release tag запустите WebRTC-профиль `ci`:
+
+```bash
+go run ./cmd/webrtc-soak --profile ci \
+  --report artifacts/webrtc-soak-release.json
+```
+
+Отдельный workflow `.github/workflows/webrtc-soak.yml` каждый понедельник
+запускает более длинный профиль `soak` на Ubuntu и macOS и позволяет вручную
+выбирать профиль.
 
 - Linux: `amd64`, `arm64`;
 - macOS: `amd64`, `arm64`;
