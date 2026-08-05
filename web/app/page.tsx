@@ -8,7 +8,7 @@ const BrowserTerminal = lazy(() => import("./browser-terminal"));
 const INSTALL_COMMAND = "GOTOOLCHAIN=auto CGO_ENABLED=0 go install github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@latest";
 const INSTALLATION_RU_URL = "https://github.com/santaklouse/go-p2p-netcat/blob/main/docs/INSTALLATION.RU.md";
 const INSTALLATION_EN_URL = "https://github.com/santaklouse/go-p2p-netcat/blob/main/docs/INSTALLATION.md";
-const PRESENTATION_BASE_URL = `${import.meta.env.BASE_URL}docs/`;
+const PRESENTATION_BASE_URL = "https://raw.githubusercontent.com/santaklouse/go-p2p-netcat/main/docs/";
 const PRESENTATION_RU_PDF_URL = `${PRESENTATION_BASE_URL}p2p-netcat-product-technical-overview-ru.pdf`;
 const PRESENTATION_EN_PDF_URL = `${PRESENTATION_BASE_URL}p2p-netcat-product-technical-overview-en.pdf`;
 const PRESENTATION_RU_MOBILE_URL = `${PRESENTATION_BASE_URL}p2p-netcat-product-technical-overview-ru-mobile.pdf`;
@@ -389,7 +389,8 @@ export default function Home() {
           <a
             href={language === "ru" ? PRESENTATION_RU_PPTX_URL : PRESENTATION_EN_PPTX_URL}
             hrefLang={language}
-            download
+            target="_blank"
+            rel="noreferrer"
           >
             {copy.presentationSourceGuide}
           </a>

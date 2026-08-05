@@ -43,12 +43,6 @@ test("exposes project status badges and presentation links in the README and PWA
     presentationEnPdf,
     presentationRuMobile,
     presentationEnMobile,
-    publishedRuPptx,
-    publishedEnPptx,
-    publishedRuPdf,
-    publishedEnPdf,
-    publishedRuMobile,
-    publishedEnMobile,
   ] = await Promise.all([
     readFile(new URL("../../README.md", import.meta.url), "utf8"),
     readFile(new URL("../../README.RU.md", import.meta.url), "utf8"),
@@ -65,12 +59,6 @@ test("exposes project status badges and presentation links in the README and PWA
     readFile(new URL("../../docs/p2p-netcat-product-technical-overview-en.pdf", import.meta.url)),
     readFile(new URL("../../docs/p2p-netcat-product-technical-overview-ru-mobile.pdf", import.meta.url)),
     readFile(new URL("../../docs/p2p-netcat-product-technical-overview-en-mobile.pdf", import.meta.url)),
-    readFile(new URL("../dist/docs/p2p-netcat-product-technical-overview-ru.pptx", import.meta.url)),
-    readFile(new URL("../dist/docs/p2p-netcat-product-technical-overview-en.pptx", import.meta.url)),
-    readFile(new URL("../dist/docs/p2p-netcat-product-technical-overview-ru.pdf", import.meta.url)),
-    readFile(new URL("../dist/docs/p2p-netcat-product-technical-overview-en.pdf", import.meta.url)),
-    readFile(new URL("../dist/docs/p2p-netcat-product-technical-overview-ru-mobile.pdf", import.meta.url)),
-    readFile(new URL("../dist/docs/p2p-netcat-product-technical-overview-en-mobile.pdf", import.meta.url)),
   ]);
 
   for (const document of [readme, readmeRu]) {
@@ -95,11 +83,8 @@ test("exposes project status badges and presentation links in the README and PWA
   assert.match(architectureRu, /\(p2p-netcat-product-technical-overview-ru\.pdf\)/);
   assert.match(architectureRu, /\(p2p-netcat-product-technical-overview-ru\.pptx\)/);
   const sourceArtifacts = [presentationRuPptx, presentationEnPptx, presentationRuPdf, presentationEnPdf, presentationRuMobile, presentationEnMobile];
-  const publishedArtifacts = [publishedRuPptx, publishedEnPptx, publishedRuPdf, publishedEnPdf, publishedRuMobile, publishedEnMobile];
   for (const artifact of sourceArtifacts) assert.ok(artifact.byteLength > 0);
-  for (let index = 0; index < sourceArtifacts.length; index += 1) {
-    assert.equal(publishedArtifacts[index].byteLength, sourceArtifacts[index].byteLength);
-  }
+  await assert.rejects(access(new URL("../dist/docs/", import.meta.url)));
   assert.equal(presentationRuPdf.subarray(0, 5).toString(), "%PDF-");
   assert.equal(presentationEnPdf.subarray(0, 5).toString(), "%PDF-");
   assert.equal(presentationRuMobile.subarray(0, 5).toString(), "%PDF-");
@@ -107,7 +92,7 @@ test("exposes project status badges and presentation links in the README and PWA
   assert.equal(presentationRuPptx.subarray(0, 2).toString(), "PK");
   assert.equal(presentationEnPptx.subarray(0, 2).toString(), "PK");
   assert.match(page, /const PROJECT_BADGES/);
-  assert.match(page, /const PRESENTATION_BASE_URL/);
+  assert.match(page, /const PRESENTATION_BASE_URL = "https:\/\/raw\.githubusercontent\.com\/santaklouse\/go-p2p-netcat\/main\/docs\/"/);
   assert.match(page, /const PRESENTATION_RU_PDF_URL/);
   assert.match(page, /const PRESENTATION_EN_PDF_URL/);
   assert.match(page, /const PRESENTATION_RU_MOBILE_URL/);

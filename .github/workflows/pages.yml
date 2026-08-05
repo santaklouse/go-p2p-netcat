@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - .github/workflows/pages.yml
-      - docs/p2p-netcat-product-technical-overview-*
       - packages/core/**
       - web/**
   workflow_dispatch:
