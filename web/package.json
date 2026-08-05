@@ -84,5 +84,9 @@
     "vite": "^7.3.6",
     "vite-plugin-pwa": "1.2.0",
     "workbox-window": "7.4.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "fsevents@2.3.3": true
   }
 }
