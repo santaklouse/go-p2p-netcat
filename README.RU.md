@@ -616,6 +616,7 @@ adb shell /data/local/tmp/p2p-nc --version
 - [Pairing protocol](docs/PAIRING_PROTOCOL.RU.md)
 - [Relay API](docs/RELAY_API.RU.md)
 - [Миграция native WebRTC](docs/WEBRTC_MIGRATION.RU.md)
+- [Будущие идеи: relay-only и WSS gateway/agent](docs/FUTURE_IDEAS.RU.md)
 - [GitHub Wiki](https://github.com/santaklouse/go-p2p-netcat/wiki)
 
 ## Структура

@@ -65,6 +65,8 @@ p2pnc_wiki_convert() {
 		-e 's|docs/USE_CASES.md|Use-Cases|g' \
 		-e 's|docs/WEBRTC_MIGRATION.RU.md|WebRTC-Migration-RU|g' \
 		-e 's|docs/WEBRTC_MIGRATION.md|WebRTC-Migration|g' \
+		-e 's|docs/FUTURE_IDEAS.RU.md|Future-Ideas-RU|g' \
+		-e 's|docs/FUTURE_IDEAS.md|Future-Ideas|g' \
 		-e 's|(README.RU.md)|(Home-RU)|g' \
 		-e 's|(README.md)|(Home)|g' \
 		-e 's|(docs/ARCHITECTURE.RU.md)|(Architecture-RU)|g' \
@@ -83,6 +85,8 @@ p2pnc_wiki_convert() {
 		-e 's|(docs/USE_CASES.md)|(Use-Cases)|g' \
 		-e 's|(docs/WEBRTC_MIGRATION.RU.md)|(WebRTC-Migration-RU)|g' \
 		-e 's|(docs/WEBRTC_MIGRATION.md)|(WebRTC-Migration)|g' \
+		-e 's|(docs/FUTURE_IDEAS.RU.md)|(Future-Ideas-RU)|g' \
+		-e 's|(docs/FUTURE_IDEAS.md)|(Future-Ideas)|g' \
 		-e 's|(ARCHITECTURE.RU.md)|(Architecture-RU)|g' \
 		-e 's|(ARCHITECTURE.md)|(Architecture)|g' \
 		-e 's|(DATAGRAM_PROTOCOL.RU.md)|(Datagram-Protocol-RU)|g' \
@@ -99,6 +103,8 @@ p2pnc_wiki_convert() {
 		-e 's|(USE_CASES.md)|(Use-Cases)|g' \
 		-e 's|(WEBRTC_MIGRATION.RU.md)|(WebRTC-Migration-RU)|g' \
 		-e 's|(WEBRTC_MIGRATION.md)|(WebRTC-Migration)|g' \
+		-e 's|(FUTURE_IDEAS.RU.md)|(Future-Ideas-RU)|g' \
+		-e 's|(FUTURE_IDEAS.md)|(Future-Ideas)|g' \
 		-e 's|(../Dockerfile)|(https://github.com/santaklouse/go-p2p-netcat/blob/main/Dockerfile)|g' \
 		-e 's|(../deploy/deploy.sh)|(https://github.com/santaklouse/go-p2p-netcat/blob/main/deploy/deploy.sh)|g' \
 		-e 's|(../scripts/docker_test.sh)|(https://github.com/santaklouse/go-p2p-netcat/blob/main/scripts/docker_test.sh)|g' \
@@ -123,6 +129,8 @@ p2pnc_wiki_convert docs/USE_CASES.md Use-Cases.md
 p2pnc_wiki_convert docs/USE_CASES.RU.md Use-Cases-RU.md
 p2pnc_wiki_convert docs/WEBRTC_MIGRATION.md WebRTC-Migration.md
 p2pnc_wiki_convert docs/WEBRTC_MIGRATION.RU.md WebRTC-Migration-RU.md
+p2pnc_wiki_convert docs/FUTURE_IDEAS.md Future-Ideas.md
+p2pnc_wiki_convert docs/FUTURE_IDEAS.RU.md Future-Ideas-RU.md
 
 printf '%s\n' \
 	'## English' \
@@ -136,6 +144,7 @@ printf '%s\n' \
 	'- [[Pairing protocol|Pairing-Protocol]]' \
 	'- [[Relay API|Relay-API]]' \
 	'- [[WebRTC migration|WebRTC-Migration]]' \
+	'- [[Future ideas: relay-only and WSS gateway/agent|Future-Ideas]]' \
 	'' \
 	'## Русский' \
 	'' \
@@ -148,6 +157,7 @@ printf '%s\n' \
 	'- [[Pairing protocol|Pairing-Protocol-RU]]' \
 	'- [[Relay API|Relay-API-RU]]' \
 	'- [[Миграция WebRTC|WebRTC-Migration-RU]]' \
+	'- [[Будущие идеи: relay-only и WSS gateway/agent|Future-Ideas-RU]]' \
 	>"${p2pnc_wiki_temp_dir}/_Sidebar.md"
 
 printf '%s\n' \

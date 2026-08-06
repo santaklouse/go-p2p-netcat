@@ -18,7 +18,7 @@ p2pnc_wiki_test_count="$(
 		wc -l |
 		tr -d ' '
 )"
-[[ "${p2pnc_wiki_test_count}" == "20" ]]
+[[ "${p2pnc_wiki_test_count}" == "22" ]]
 
 for p2pnc_wiki_test_page in \
 	Home.md \
@@ -27,6 +27,8 @@ for p2pnc_wiki_test_page in \
 	Datagram-Protocol-RU.md \
 	Use-Cases.md \
 	Use-Cases-RU.md \
+	Future-Ideas.md \
+	Future-Ideas-RU.md \
 	_Sidebar.md \
 	_Footer.md; do
 	[[ -s "${p2pnc_wiki_test_destination}/${p2pnc_wiki_test_page}" ]]
@@ -41,6 +43,10 @@ fi
 grep -Fq '[[Practical use cases|Use-Cases]]' \
 	"${p2pnc_wiki_test_destination}/_Sidebar.md"
 grep -Fq '[[Практические сценарии|Use-Cases-RU]]' \
+	"${p2pnc_wiki_test_destination}/_Sidebar.md"
+grep -Fq '[[Future ideas: relay-only and WSS gateway/agent|Future-Ideas]]' \
+	"${p2pnc_wiki_test_destination}/_Sidebar.md"
+grep -Fq '[[Будущие идеи: relay-only и WSS gateway/agent|Future-Ideas-RU]]' \
 	"${p2pnc_wiki_test_destination}/_Sidebar.md"
 
 for p2pnc_wiki_test_page in Home.md Architecture.md; do
