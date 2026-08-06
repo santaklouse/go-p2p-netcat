@@ -59,6 +59,14 @@ p2pnc_docker_test_uid="$(
 )"
 [[ "${p2pnc_docker_test_uid}" == "65532" ]]
 
+p2pnc_docker_test_cache_home="$(
+	docker run --rm \
+		--entrypoint /bin/sh \
+		"${p2pnc_docker_test_image}" \
+		-c 'printf %s "${XDG_CACHE_HOME}"'
+)"
+[[ "${p2pnc_docker_test_cache_home}" == "/config/p2p-netcat/cache" ]]
+
 docker volume create "${p2pnc_docker_test_volume}" >/dev/null
 p2pnc_docker_test_first_id="$(
 	docker run --rm \
@@ -78,6 +86,11 @@ docker run --rm \
 	--volume "${p2pnc_docker_test_volume}:/config" \
 	--entrypoint /bin/sh \
 	"${p2pnc_docker_test_image}" \
-	-c 'test "$(stat -c %a /config/p2p-netcat/identity.key)" = "600"'
+	-c '
+		test "$(stat -c %a /config/p2p-netcat/identity.key)" = "600"
+		mkdir -p "${XDG_CACHE_HOME}/p2p-netcat/listeners"
+		touch "${XDG_CACHE_HOME}/p2p-netcat/listeners/35182.lock"
+		test -w "${XDG_CACHE_HOME}/p2p-netcat/listeners/35182.lock"
+	'
 
 printf '%s\n' "Docker image tests passed"

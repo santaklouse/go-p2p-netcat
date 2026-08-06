@@ -43,6 +43,7 @@ RUN ln -s /usr/local/bin/p2p-nc /usr/local/bin/pnc \
 
 ENV HOME=/config
 ENV XDG_CONFIG_HOME=/config
+ENV XDG_CACHE_HOME=/config/p2p-netcat/cache
 
 VOLUME ["/config"]
 EXPOSE 4001/tcp

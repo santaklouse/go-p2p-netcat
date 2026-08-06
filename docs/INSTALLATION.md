@@ -91,7 +91,8 @@ docker inspect \
 
 The process runs as UID/GID `65532`, includes CA certificates and `/bin/sh`,
 and uses `/config/p2p-netcat/identity.key` as its default persistent identity.
-Keep `/config` in a named volume:
+Its writable cache, including listener lock files, is kept below
+`/config/p2p-netcat/cache`. Keep `/config` in a named volume:
 
 ```bash
 docker volume create p2p-netcat-config
@@ -109,6 +110,7 @@ docker run --rm --init \
   --name p2p-netcat \
   --network host \
   --volume p2p-netcat-config:/config \
+  --env XDG_CACHE_HOME=/config/p2p-netcat/cache \
   ghcr.io/santaklouse/go-p2p-netcat:latest \
   -l -k --transport-port 4001 31337
 ```
@@ -120,6 +122,7 @@ docker run --rm --init \
   --name p2p-netcat-wireguard \
   --network host \
   --volume p2p-netcat-config:/config \
+  --env XDG_CACHE_HOME=/config/p2p-netcat/cache \
   ghcr.io/santaklouse/go-p2p-netcat:latest \
   -u -l -k --transport-port 4001 \
   -d 127.0.0.1 -p 51820 35182
@@ -127,7 +130,10 @@ docker run --rm --init \
 
 Docker Desktop does not provide Linux host networking with identical behavior.
 Use bridge networking there, publish the required TCP/UDP ports, and provide an
-explicit relay or public `--announce` address:
+explicit relay or public `--announce` address. Docker Desktop bridge networks
+do not expose a suitable multicast interface to libp2p mDNS, so disable mDNS;
+DHT, PubSub, native WebRTC signaling, and explicit relay discovery remain
+available:
 
 ```bash
 docker run --rm --init \
@@ -137,7 +143,7 @@ docker run --rm --init \
   --publish 127.0.0.1:15182:15182/udp \
   --volume p2p-netcat-config:/config \
   ghcr.io/santaklouse/go-p2p-netcat:latest \
-  -u --bind 0.0.0.0 -p 15182 --transport-port 4001 \
+  -u --no-mdns --bind 0.0.0.0 -p 15182 --transport-port 4001 \
   12D3KooWQ3uxpHgjDKE6vGmvzKS8RPbxUDLwJ7XCLaD6YXdUfbR9 35182
 ```
 
@@ -146,6 +152,9 @@ connection must use the listener's PeerId. Add the same explicit `--relay`
 multiaddr to both peers when direct discovery or reachability is insufficient.
 The Docker-published UDP port remains host-loopback-only even though
 p2p-netcat binds all interfaces inside the isolated container.
+A quic-go receive-buffer warning may still appear because Docker Desktop
+controls the Linux VM socket limits; it is non-fatal and does not require
+disabling QUIC.
 
 Build and test the container locally:
 
