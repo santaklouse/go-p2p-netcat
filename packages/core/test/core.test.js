@@ -803,6 +803,26 @@ test('WebRTC stream limits unacknowledged output until the consumer advances', a
   await receiver.close()
 })
 
+test('WebRTC stream rejects an oversized receive queue', async () => {
+  const controls = []
+  const stream = new WebRtcStream({
+    maxReadQueueBytes: 4,
+    keepAliveIntervalMs: 0,
+    sendData: async () => {},
+    sendControl: async control => controls.push(control)
+  })
+  stream.receiveData(Uint8Array.from([1, 2, 3, 4]))
+  stream.receiveData(Uint8Array.from([5]))
+  await new Promise(resolve => setImmediate(resolve))
+
+  assert.equal(stream.status, 'closed')
+  assert.ok(controls.includes('abort'))
+  assert.deepEqual(await stream[Symbol.asyncIterator]().next(), {
+    value: undefined,
+    done: true
+  })
+})
+
 test('WebRTC stream preserves queued data while the peer reconnects', async () => {
   const sent = []
   const controls = []

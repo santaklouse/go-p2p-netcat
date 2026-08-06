@@ -15,8 +15,8 @@ HTML, CSS, JavaScript, a Web Worker, a Service Worker, a manifest, and images.
 - connection to a CLI server by `PeerId` and logical port;
 - automatic lookup through signed GossipSub announcements, HTTP Delegated
   Routing, and IPFS Amino DHT;
-- optional `pnc1_` pairing tokens for private rotating discovery, encrypted
-  signaling, and mutual admission;
+- `pnc1_` pairing tokens for private rotating discovery, encrypted signaling,
+  mutual admission, privileged CLI listeners, and native WebRTC;
 - project-owned direct WebRTC through signed Nostr events and public WebTorrent
   trackers;
 - WebTransport or WebSocket/WSS through libp2p Circuit Relay v2;
@@ -30,14 +30,22 @@ HTML, CSS, JavaScript, a Web Worker, a Service Worker, a manifest, and images.
 
 ## Connecting to an `-i` listener
 
-Start the CLI listener:
+Create a service-scoped pairing token and start the protected CLI listener:
 
 ```bash
-p2p-nc -l -i 31337
+install -d -m 0700 ~/.config/p2p-netcat
+p2p-nc token 31337 \
+  --identity ~/.config/p2p-netcat/identity.key \
+  >~/.config/p2p-netcat/web-pty.token
+chmod 0600 ~/.config/p2p-netcat/web-pty.token
+p2p-nc -l -i \
+  --identity ~/.config/p2p-netcat/identity.key \
+  --pairing-token-file ~/.config/p2p-netcat/web-pty.token
 ```
 
-In the web UI, enter the printed PeerId and port `31337`, then enable
-**Interactive PTY -i** before connecting. In this mode the browser uses the
+In the web UI, paste the contents of `web-pty.token`, then enable **Interactive
+PTY -i** before connecting. The token fills the PeerId and logical port. In
+this mode the browser uses the
 same framed PTY protocol as the CLI client: keyboard input is forwarded
 directly, ANSI sequences are rendered by the terminal, and widget resize events
 are sent to the remote `node-pty` process.
@@ -47,11 +55,8 @@ because ordinary streams and PTY sessions share one logical protocol ID and the
 server does not send a separate mode-negotiation message. Leave the switch off
 when the listener was started without `-i`.
 
-For private access, generate a token with `p2p-nc token 31337`, start the
-listener with `P2P_NETCAT_TOKEN`, and paste the token into **Private access and
-relay**. The form obtains PeerId and port from the token. The secret is kept in
-React state for the current page lifetime and is not written to
-`localStorage`. The complete format is documented in the
+The secret is kept in React state for the current page lifetime and is not
+written to `localStorage`. The complete format is documented in the
 [pairing protocol](https://github.com/santaklouse/go-p2p-netcat/blob/main/docs/PAIRING_PROTOCOL.md).
 
 ## Architecture
@@ -84,10 +89,12 @@ continue. Merely changing window focus does not call `stop()`. A complete tab
 discard or page reload is different because it destroys the browser JavaScript
 context and its ephemeral signaling identity.
 
-When the relay field is empty, native WebRTC and the Worker start
-simultaneously. Native WebRTC races signed Nostr events and WebTorrent tracker
-announces. With a pairing token, the Worker queries only secret-derived
-provider CIDs and native signaling encrypts SDP/ICE.
+When the relay field is empty and a pairing token is present, native WebRTC and
+the Worker start simultaneously. Native WebRTC races signed Nostr events and
+WebTorrent tracker announces. The Worker queries only secret-derived provider
+CIDs and native signaling encrypts SDP/ICE. Without a pairing token, native
+WebRTC is disabled and only the Noise-authenticated libp2p Worker route is
+attempted.
 The Worker listens for signed announcements on the app-specific GossipSub
 topic and resolves the PeerId through
 `https://delegated-ipfs.dev/routing/v1`, and then uses DHT as a fallback. The

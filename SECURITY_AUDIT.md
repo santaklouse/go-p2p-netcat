@@ -4,6 +4,11 @@ Audit date: August 5, 2026.
 
 Audited commit: `8676929ced7b3c5fd2a3f60351d54007b1be7003`.
 
+Remediation work and current status are tracked in
+[`SECURITY_REMEDIATION_PLAN.md`](SECURITY_REMEDIATION_PLAN.md). This report is
+kept as the original assessment and must not be read as the status of the
+working remediation branch.
+
 ## Executive summary
 
 The utility is conditionally vulnerable to an active man-in-the-middle attack through its custom Native WebRTC transport when that transport is used without a pairing token.

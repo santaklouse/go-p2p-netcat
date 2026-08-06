@@ -161,6 +161,8 @@ test("runs the network stack in a dedicated Web Worker", async () => {
   assert.match(worker, /PUBSUB_DISCOVERY_TOPIC/);
   assert.match(worker, /privateDiscovery[\s\S]*?pubsubPeerDiscovery/);
   assert.match(client, /privateDiscovery: pairingToken\.trim\(\)\.length > 0/);
+  assert.match(client, /if \(pairingToken\.length === 0\)/);
+  assert.match(client, /Native WebRTC отключён без pairing token/);
   assert.match(worker, /indexedDB\.open/);
   assert.match(worker, /workerScope\.crypto\?\.subtle/);
   assert.match(worker, /Откройте приложение по HTTPS/);

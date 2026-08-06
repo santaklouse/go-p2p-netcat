@@ -114,3 +114,17 @@ func TestEncryptedTokenWrongPasswordDoesNotCreateOutput(t *testing.T) {
 		t.Fatalf("wrong password created output: %v", err)
 	}
 }
+
+func TestReadPairingTokenFileRejectsNonRegularAndOversizedFiles(t *testing.T) {
+	directory := t.TempDir()
+	if _, err := readPairingTokenFile(directory); err == nil {
+		t.Fatal("directory was accepted as a pairing token file")
+	}
+	path := filepath.Join(directory, "oversized.token")
+	if err := os.WriteFile(path, []byte(strings.Repeat("x", 64*1024)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readPairingTokenFile(path); err == nil {
+		t.Fatal("oversized pairing token file was accepted")
+	}
+}

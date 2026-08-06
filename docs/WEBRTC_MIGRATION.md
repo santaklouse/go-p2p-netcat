@@ -134,13 +134,21 @@ PeerId, and closes every losing attempt.
 Verbose CLI runs expose the exact production path:
 
 ```bash
-p2p-nc -l -i -v 31337
-p2p-nc -i -v 12D3KooWQ3uxpHgjDKE6vGmvzKS8RPbxUDLwJ7XCLaD6YXdUfbR9 31337
+install -d -m 0700 ~/.config/p2p-netcat
+p2p-nc token 31337 \
+  --identity ~/.config/p2p-netcat/identity.key \
+  >~/.config/p2p-netcat/webrtc.token
+chmod 0600 ~/.config/p2p-netcat/webrtc.token
+p2p-nc -l -i -v \
+  --identity ~/.config/p2p-netcat/identity.key \
+  --pairing-token-file ~/.config/p2p-netcat/webrtc.token
+p2p-nc -i -v \
+  --pairing-token-file ~/.config/p2p-netcat/webrtc.token
 ```
 
-The PeerId in the second command must be replaced with the value printed by
-the listener. The removed `--no-trystero` option and PWA native-only switch are
-unnecessary because this is now the only WebRTC implementation.
+The token supplies the server PeerId and logical port to the second command.
+The removed `--no-trystero` option and PWA native-only switch are unnecessary
+because this is now the only Native WebRTC implementation.
 
 The authentication transcript intentionally retains its historical
 `p2p-netcat/trystero-auth/v1` domain string. Changing it would break wire

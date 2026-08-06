@@ -15,8 +15,9 @@ CSS, JavaScript, Web Worker, Service Worker, manifest и изображений.
 - подключение к CLI-серверу по `PeerId` и логическому порту;
 - автоматический поиск через подписанные GossipSub-объявления, HTTP Delegated
   Routing и IPFS Amino DHT;
-- необязательный pairing token `pnc1_` для приватного вращающегося discovery,
-  зашифрованного signaling и взаимного admission;
+- pairing token `pnc1_` для приватного вращающегося discovery, зашифрованного
+  signaling, взаимного admission, привилегированных CLI-listener и native
+  WebRTC;
 - собственный прямой WebRTC через подписанные Nostr events и публичные
   WebTorrent trackers;
 - WebTransport или WebSocket/WSS через libp2p Circuit Relay v2;
@@ -30,14 +31,22 @@ CSS, JavaScript, Web Worker, Service Worker, manifest и изображений.
 
 ## Подключение к серверу `-i`
 
-Запустите CLI listener:
+Создайте pairing token для сервиса и запустите защищённый CLI listener:
 
 ```bash
-p2p-nc -l -i 31337
+install -d -m 0700 ~/.config/p2p-netcat
+p2p-nc token 31337 \
+  --identity ~/.config/p2p-netcat/identity.key \
+  >~/.config/p2p-netcat/web-pty.token
+chmod 0600 ~/.config/p2p-netcat/web-pty.token
+p2p-nc -l -i \
+  --identity ~/.config/p2p-netcat/identity.key \
+  --pairing-token-file ~/.config/p2p-netcat/web-pty.token
 ```
 
-В веб-интерфейсе укажите напечатанный PeerId и порт `31337`, затем включите
-переключатель **«Интерактивный PTY -i»** до подключения. В этом режиме браузер
+В веб-интерфейсе вставьте содержимое `web-pty.token`, затем включите
+переключатель **«Интерактивный PTY -i»** до подключения. Token заполнит PeerId
+и логический порт. В этом режиме браузер
 использует тот же фреймированный PTY-протокол, что и CLI-клиент: клавиатурный
 ввод передаётся напрямую, ANSI-последовательности обрабатываются терминалом, а
 изменение размера виджета отправляется удалённому `node-pty`.
@@ -47,11 +56,9 @@ p2p-nc -l -i 31337
 сервер не отправляет отдельное сообщение согласования режима. Если listener
 запущен без `-i`, оставьте этот переключатель выключенным.
 
-Для приватного доступа создайте token командой `p2p-nc token 31337`, запустите
-listener с `P2P_NETCAT_TOKEN` и вставьте token в раздел «Приватный доступ и
-relay». Форма получает PeerId и порт из token. Секрет хранится только в React
-state текущей страницы и не записывается в `localStorage`. Полный формат описан
-в [спецификации pairing](https://github.com/santaklouse/go-p2p-netcat/blob/main/docs/PAIRING_PROTOCOL.RU.md).
+Секрет хранится только в React state текущей страницы и не записывается в
+`localStorage`. Полный формат описан в
+[спецификации pairing](https://github.com/santaklouse/go-p2p-netcat/blob/main/docs/PAIRING_PROTOCOL.RU.md).
 
 ## Архитектура
 
@@ -83,10 +90,11 @@ native endpoint controller перестроит WebRTC data channel, продо�
 вкладки из памяти или reload отличается тем, что уничтожает
 JavaScript-контекст браузера и его временную signaling identity.
 
-При пустом поле relay одновременно запускаются native WebRTC и Worker. Native
-WebRTC соревнуёт подписанные Nostr events и WebTorrent tracker announce.
-С pairing token Worker запрашивает только provider CID из секрета, а native
-signaling шифрует SDP/ICE.
+При пустом поле relay и наличии pairing token одновременно запускаются native
+WebRTC и Worker. Native WebRTC соревнуёт подписанные Nostr events и WebTorrent
+tracker announce. Worker запрашивает только provider CID из секрета, а native
+signaling шифрует SDP/ICE. Без pairing token native WebRTC отключён и
+используется только libp2p-маршрут Worker с Noise-аутентификацией.
 Worker слушает подписанные объявления в отдельной GossipSub-теме приложения,
 запрашивает адрес PeerId через `https://delegated-ipfs.dev/routing/v1`, затем
 использует DHT как fallback. Первый аутентифицированный канал побеждает.

@@ -46,11 +46,11 @@ func TestDuplicateLogicalPortReturnsFailureForEveryListenerMode(t *testing.T) {
 	}{
 		{name: "raw", args: []string{"-l", port}},
 		{name: "keep-open", args: []string{"-l", "-k", port}},
-		{name: "PTY", args: []string{"-l", "-i", port}},
-		{name: "exec", args: []string{"-l", "-e", "true", port}},
-		{name: "SOCKS", args: []string{"-l", "-S", port}},
-		{name: "TCP forwarding", args: []string{"-l", "-p", "22", port}},
-		{name: "UDP forwarding", args: []string{"-l", "-u", "-p", "51820", port}},
+		{name: "PTY", args: []string{"-l", "-i", "--allow-unauthenticated-listener", port}},
+		{name: "exec", args: []string{"-l", "-e", "true", "--allow-unauthenticated-listener", port}},
+		{name: "SOCKS", args: []string{"-l", "-S", "--allow-unauthenticated-listener", port}},
+		{name: "TCP forwarding", args: []string{"-l", "-p", "22", "--allow-unauthenticated-listener", port}},
+		{name: "UDP forwarding", args: []string{"-l", "-u", "-p", "51820", "--allow-unauthenticated-listener", port}},
 		{name: "quiet", args: []string{"-q", "-l", port}, quiet: true},
 	}
 	for _, test := range tests {

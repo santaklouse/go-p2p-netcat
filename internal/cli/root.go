@@ -29,38 +29,40 @@ import (
 var Version = "0.6.0"
 
 type options struct {
-	listen           bool
-	keepOpen         bool
-	timeout          int
-	timeoutExplicit  bool
-	quitDelay        int
-	destination      string
-	port             int
-	quiet            bool
-	socks            bool
-	tor              bool
-	interactive      bool
-	zero             bool
-	exec             string
-	udp              bool
-	udpIdleTimeout   int
-	transportPort    int
-	ipv4             bool
-	ipv6             bool
-	identity         string
-	relays           []string
-	bootstrap        []string
-	announce         []string
-	noDHT            bool
-	noMDNS           bool
-	noPubsub         bool
-	noQUIC           bool
-	noWebRTC         bool
-	pairingToken     string
-	pairingTokenFile string
-	bind             string
-	json             bool
-	verbose          bool
+	listen                           bool
+	keepOpen                         bool
+	timeout                          int
+	timeoutExplicit                  bool
+	quitDelay                        int
+	destination                      string
+	port                             int
+	quiet                            bool
+	socks                            bool
+	tor                              bool
+	interactive                      bool
+	zero                             bool
+	exec                             string
+	udp                              bool
+	udpIdleTimeout                   int
+	transportPort                    int
+	ipv4                             bool
+	ipv6                             bool
+	identity                         string
+	relays                           []string
+	bootstrap                        []string
+	announce                         []string
+	noDHT                            bool
+	noMDNS                           bool
+	noPubsub                         bool
+	noQUIC                           bool
+	noWebRTC                         bool
+	allowUnauthenticatedListener     bool
+	allowUnauthenticatedNativeWebRTC bool
+	pairingToken                     string
+	pairingTokenFile                 string
+	bind                             string
+	json                             bool
+	verbose                          bool
 }
 
 func NewRoot() *cobra.Command {
@@ -126,6 +128,18 @@ func addNodeFlags(command *cobra.Command, opts *options) {
 	flags.BoolVar(&opts.noPubsub, "no-pubsub", false, "disable PubSub discovery")
 	flags.BoolVar(&opts.noQUIC, "no-quic", false, "disable QUIC")
 	flags.BoolVar(&opts.noWebRTC, "no-webrtc", false, "disable WebRTC Direct and native Nostr/WebTorrent WebRTC")
+	flags.BoolVar(
+		&opts.allowUnauthenticatedListener,
+		"allow-unauthenticated-listener",
+		false,
+		"allow privileged listener modes without a pairing token (unsafe)",
+	)
+	flags.BoolVar(
+		&opts.allowUnauthenticatedNativeWebRTC,
+		"allow-unauthenticated-native-webrtc",
+		false,
+		"allow native Nostr/WebTorrent WebRTC without a pairing token (unsafe)",
+	)
 	flags.StringVar(&opts.pairingToken, "pairing-token", "", "private pnc1_... pairing token")
 	flags.StringVar(&opts.pairingTokenFile, "pairing-token-file", "", "read a pairing token from a file")
 	flags.StringVar(&opts.bind, "bind", "127.0.0.1", "local bind address for TCP/UDP -p forwarding")
@@ -202,7 +216,27 @@ func validateOptions(command *cobra.Command, opts *options, args []string) error
 	if opts.listen && len(args) > 1 {
 		return errors.New("listener mode accepts only a logical port: p2p-nc -l 8080")
 	}
+	privileged := privilegedListenerMode(opts)
+	if opts.allowUnauthenticatedListener && (!opts.listen || !privileged) {
+		return errors.New("--allow-unauthenticated-listener requires -l with -i, -e, -S, or -p")
+	}
+	if opts.listen && privileged && !pairingTokenConfigured(opts) && !opts.allowUnauthenticatedListener {
+		return errors.New("privileged listener modes require a pairing token; use --allow-unauthenticated-listener only if public access is intended")
+	}
+	if opts.allowUnauthenticatedNativeWebRTC && (opts.noWebRTC || opts.tor) {
+		return errors.New("--allow-unauthenticated-native-webrtc cannot be combined with --no-webrtc or -T/--tor")
+	}
 	return nil
+}
+
+func privilegedListenerMode(opts *options) bool {
+	return opts.interactive || opts.exec != "" || opts.socks || opts.port != 0
+}
+
+func pairingTokenConfigured(opts *options) bool {
+	return strings.TrimSpace(opts.pairingToken) != "" ||
+		strings.TrimSpace(opts.pairingTokenFile) != "" ||
+		strings.TrimSpace(os.Getenv("P2P_NETCAT_TOKEN")) != ""
 }
 
 func runListener(ctx context.Context, opts *options, args []string) error {
@@ -306,7 +340,7 @@ func runListener(ctx context.Context, opts *options, args []string) error {
 		handleStream(stream, stream.Conn().RemotePeer().String())
 	})
 	var nativeListener *nativewebrtc.Listener
-	if nativeWebRTCEnabled(opts) {
+	if nativeWebRTCEnabled(opts, token != nil) {
 		nativeListener, err = nativewebrtc.StartListener(
 			ctx, privateKey, service, token, nil, nil,
 			func(stream *nativewebrtc.Stream, remote string) {
@@ -325,6 +359,10 @@ func runListener(ctx context.Context, opts *options, args []string) error {
 	if token != nil {
 		diagnostic(opts, "private pairing-token mode enabled")
 	}
+	if opts.allowUnauthenticatedListener && token == nil {
+		diagnostic(opts, "WARNING: privileged listener is accepting unauthenticated peers")
+	}
+	diagnoseNativeWebRTCSecurity(opts, token != nil)
 	if persistent {
 		<-ctx.Done()
 		return nil
@@ -372,6 +410,7 @@ func runClient(ctx context.Context, opts *options, args []string) error {
 			opts.relays = relayStrings(token)
 		}
 	}
+	diagnoseNativeWebRTCSecurity(opts, token != nil)
 	privateKey, err := identity.LoadOrCreate(opts.identity)
 	if err != nil {
 		return err
@@ -387,7 +426,7 @@ func runClient(ctx context.Context, opts *options, args []string) error {
 		defer cancel()
 		stream, openErr := openAnyStream(
 			dialCtx, node, target, targetID, service, opts.relays, token,
-			nativeWebRTCEnabled(opts),
+			nativeWebRTCEnabled(opts, token != nil),
 			opts.udp,
 		)
 		if openErr != nil {
@@ -573,8 +612,19 @@ func openAnyStream(
 	return nil, errors.Join(failures...)
 }
 
-func nativeWebRTCEnabled(opts *options) bool {
-	return !opts.noWebRTC && !opts.tor
+func nativeWebRTCEnabled(opts *options, authenticated bool) bool {
+	return !opts.noWebRTC && !opts.tor && (authenticated || opts.allowUnauthenticatedNativeWebRTC)
+}
+
+func diagnoseNativeWebRTCSecurity(opts *options, authenticated bool) {
+	if opts.noWebRTC || opts.tor || authenticated {
+		return
+	}
+	if opts.allowUnauthenticatedNativeWebRTC {
+		diagnostic(opts, "WARNING: native Nostr/WebTorrent WebRTC is running without pairing authentication")
+		return
+	}
+	diagnostic(opts, "native Nostr/WebTorrent WebRTC disabled without a pairing token")
 }
 
 func deadlineOr(ctx context.Context, fallback time.Time) time.Time {
@@ -665,11 +715,11 @@ func loadToken(opts *options) (*pairing.Token, error) {
 		sources["--pairing-token"] = value
 	}
 	if path := strings.TrimSpace(opts.pairingTokenFile); path != "" {
-		data, err := os.ReadFile(path)
+		data, err := readPairingTokenFile(path)
 		if err != nil {
 			return nil, err
 		}
-		sources["--pairing-token-file"] = strings.TrimSpace(string(data))
+		sources["--pairing-token-file"] = strings.TrimSpace(data)
 	}
 	if value := strings.TrimSpace(os.Getenv("P2P_NETCAT_TOKEN")); value != "" {
 		sources["P2P_NETCAT_TOKEN"] = value

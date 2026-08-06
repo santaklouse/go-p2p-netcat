@@ -273,8 +273,11 @@ files. The explicit environment override below also makes releases that predate
 the Android default work correctly:
 
 ```bash
-adb shell 'P2P_NETCAT_LISTENER_LOCK_DIR=/data/local/tmp/p2p-netcat/listeners /data/local/tmp/p2p-nc -lik --identity /data/local/tmp/p2p-nc-identity.key 31337'
+adb shell 'P2P_NETCAT_LISTENER_LOCK_DIR=/data/local/tmp/p2p-netcat/listeners /data/local/tmp/p2p-nc -lik --allow-unauthenticated-listener --identity /data/local/tmp/p2p-nc-identity.key 31337'
 ```
+
+This Android command intentionally demonstrates the explicit public-access
+override. Use a pairing token for any real PTY listener.
 
 ### Install with Go
 
@@ -366,6 +369,17 @@ wait "$DEMO_PID"
 cat "$DEMO_DIR/received.txt"
 ```
 
+### Security defaults
+
+Raw stream listeners remain public for netcat-style use. Listener `-i`, `-e`,
+`-S`, TCP forwarding, and UDP forwarding require a pairing token. The explicit
+`--allow-unauthenticated-listener` override is intended only for a deliberately
+public service and prints a warning. Custom Nostr/WebTorrent Native WebRTC is
+enabled only with a pairing token; the separate
+`--allow-unauthenticated-native-webrtc` escape hatch is unsafe. Standard
+libp2p WebRTC Direct remains available without a token because Noise binds it
+to the expected PeerId.
+
 ## Private pairing
 
 Create a token from the listener's persistent identity:
@@ -421,23 +435,39 @@ the file under the current user's profile rather than in a shared directory.
 
 ## Forwarding, SOCKS, and PTY
 
+Create service-scoped tokens for the examples below:
+
+```bash
+install -d -m 0700 "$HOME/.config/p2p-netcat"
+./p2p-nc token --identity "$HOME/.config/p2p-netcat/identity.key" 15432 >"$HOME/.config/p2p-netcat/postgres.token"
+./p2p-nc token --identity "$HOME/.config/p2p-netcat/identity.key" 35182 >"$HOME/.config/p2p-netcat/wireguard.token"
+./p2p-nc token --identity "$HOME/.config/p2p-netcat/identity.key" 1080 >"$HOME/.config/p2p-netcat/socks.token"
+./p2p-nc token --identity "$HOME/.config/p2p-netcat/identity.key" 2222 >"$HOME/.config/p2p-netcat/shell.token"
+chmod 0600 "$HOME/.config/p2p-netcat/"*.token
+```
+
 Forward a local TCP port to `127.0.0.1:5432` on the remote peer:
 
 ```bash
-./p2p-nc -l 15432 -p 5432
-./p2p-nc -p 15432 12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 15432
+./p2p-nc -l -p 5432 \
+  --identity "$HOME/.config/p2p-netcat/identity.key" \
+  --pairing-token-file "$HOME/.config/p2p-netcat/postgres.token"
+./p2p-nc -p 15432 \
+  --pairing-token-file "$HOME/.config/p2p-netcat/postgres.token"
 ```
 
 Forward a local UDP endpoint to WireGuard on the remote peer:
 
 ```bash
 # WireGuard host
-./p2p-nc -u -l -d 127.0.0.1 -p 51820 35182
+./p2p-nc -u -l -d 127.0.0.1 -p 51820 \
+  --identity "$HOME/.config/p2p-netcat/identity.key" \
+  --pairing-token-file "$HOME/.config/p2p-netcat/wireguard.token"
 
 # WireGuard client host
 sudo ./deploy/wireguard-full-tunnel.sh -- \
   /usr/local/bin/p2p-nc -u --udp-idle-timeout 0 -p 15182 \
-  12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 35182
+  --pairing-token-file "$HOME/.config/p2p-netcat/wireguard.token"
 ```
 
 Set the WireGuard peer endpoint on the client to `127.0.0.1:15182`.
@@ -453,16 +483,22 @@ is in [the WireGuard cookbook](docs/USE_CASES.md#wireguard-and-packet-preserving
 Run a SOCKS server on the remote peer:
 
 ```bash
-./p2p-nc -l -S 1080
-./p2p-nc -p 1080 12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 1080
+./p2p-nc -l -S \
+  --identity "$HOME/.config/p2p-netcat/identity.key" \
+  --pairing-token-file "$HOME/.config/p2p-netcat/socks.token"
+./p2p-nc -p 1080 \
+  --pairing-token-file "$HOME/.config/p2p-netcat/socks.token"
 curl --socks5-hostname 127.0.0.1:1080 https://example.com/
 ```
 
 Start an interactive login shell:
 
 ```bash
-./p2p-nc -l -i 2222
-./p2p-nc -i 12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 2222
+./p2p-nc -l -i \
+  --identity "$HOME/.config/p2p-netcat/identity.key" \
+  --pairing-token-file "$HOME/.config/p2p-netcat/shell.token"
+./p2p-nc -i \
+  --pairing-token-file "$HOME/.config/p2p-netcat/shell.token"
 ```
 
 In the PTY client, press `Ctrl-E` followed by `q` to close the session.

@@ -18,18 +18,24 @@
 | `-S, --socks` | Запускает SOCKS4, SOCKS4a и SOCKS5 CONNECT proxy на стороне listener. |
 | `-T, --tor` | Запускает клиент через `torsocks` и требует явный TCP/WS/WSS Circuit Relay. |
 | `-i, --interactive` | Listener создаёт настоящий PTY login shell для каждого клиента; клиент включает raw TTY и передаёт resize и управляющие символы. |
+| `--allow-unauthenticated-listener` | Явно публикует привилегированный listener без pairing token. Небезопасно; предназначено только для намеренно публичных compatibility-сценариев. |
 
 Прежнее техническое значение `-p` перенесено на `--transport-port`. Короткая
 опция файла идентичности перенесена с `-i` на `-I`; длинная `--identity` не
 изменилась. Задержка EOF доступна как `--quit-delay`, уже без старого alias
 `-q`.
 
+Привилегированные listener mode по умолчанию требуют pairing token. Чтобы
+сосредоточить этот документ на соответствии опций gs-netcat, listener-примеры
+используют явный override публичного доступа. В production замените этот флаг
+на привязанный к сервису `--pairing-token-file`.
+
 ## TCP forwarding: `-d` и `-p`
 
 Listener соединяет каждый принятый P2P-поток с настроенной TCP-целью:
 
 ```bash
-p2p-nc -l -d 192.168.6.7 -p 22 31337
+p2p-nc -l --allow-unauthenticated-listener -d 192.168.6.7 -p 22 31337
 ```
 
 Если при listener `-p` не передан `-d`, адресом назначения становится
@@ -61,7 +67,7 @@ Listener соединяет каждый принятый datagram P2P-stream с
 UDP-целью:
 
 ```bash
-p2p-nc -u -l -k -d 192.168.6.7 -p 51820 35182
+p2p-nc -u -l -k --allow-unauthenticated-listener -d 192.168.6.7 -p 51820 35182
 ```
 
 Клиент связывает локальный UDP-порт. Каждый отдельный source endpoint получает
@@ -83,15 +89,15 @@ libp2p WebRTC Direct.
 
 `-u` требует `-p` и несовместим с raw stdin/stdout, `-e`, `-i`, `-S`, `-z` и
 `--quit-delay`. Go-пиры могут переносить UDP forwarding через собственный
-Nostr/WebTorrent native WebRTC adapter для прохождения NAT. Browser-клиент не
-предоставляет локальный UDP socket.
+Nostr/WebTorrent native WebRTC adapter для прохождения NAT при наличии pairing
+token. Browser-клиент не предоставляет локальный UDP socket.
 
 ## SOCKS proxy: `-S`
 
 Запустите удалённый SOCKS endpoint:
 
 ```bash
-p2p-nc -l -S 31337
+p2p-nc -l -S --allow-unauthenticated-listener 31337
 ```
 
 Опубликуйте его локально через обычный клиентский forwarding:
@@ -111,7 +117,7 @@ curl --proxy socks5h://127.0.0.1:1080 https://example.com/
 Запустите login shell на listener:
 
 ```bash
-p2p-nc -l -i 31337
+p2p-nc -l -i --allow-unauthenticated-listener 31337
 ```
 
 Подключитесь из настоящего терминала:

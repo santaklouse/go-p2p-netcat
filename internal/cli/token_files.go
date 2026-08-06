@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"crypto/subtle"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -10,9 +11,37 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/santaklouse/go-p2p-netcat/protocol/pairing"
 	"github.com/santaklouse/go-p2p-netcat/protocol/tokenfile"
 	"golang.org/x/term"
 )
+
+func readPairingTokenFile(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("open pairing token file: %w", err)
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return "", fmt.Errorf("inspect pairing token file: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return "", errors.New("pairing token file must be a regular file")
+	}
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
+		return "", errors.New("pairing token file permissions must not grant group or other access")
+	}
+	maximum := len(pairing.TokenPrefix) + base64.RawURLEncoding.EncodedLen(pairing.MaxTokenSize) + 2
+	data, err := io.ReadAll(io.LimitReader(file, int64(maximum+1)))
+	if err != nil {
+		return "", fmt.Errorf("read pairing token file: %w", err)
+	}
+	if len(data) > maximum {
+		return "", fmt.Errorf("pairing token file exceeds %d bytes", maximum)
+	}
+	return string(data), nil
+}
 
 func readTokenPassword(path string, confirm bool) ([]byte, error) {
 	if path != "" {

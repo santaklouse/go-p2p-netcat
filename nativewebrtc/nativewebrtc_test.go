@@ -5,7 +5,9 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -110,6 +112,28 @@ func TestEncryptedSignalingRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSignalingRejectsOversizedPayloads(t *testing.T) {
+	base := Signal{
+		Type: "offer", SessionID: "0123456789abcdef",
+		SDP: strings.Repeat("s", maxSDPBytes+1),
+	}
+	if _, err := prepareOutgoing(base, "topic", "0123456789AbCdEfGhIj", nil); err == nil {
+		t.Fatal("oversized outgoing SDP was accepted")
+	}
+	base.Version = SignalVersion
+	base.Room = "topic"
+	base.From = "0123456789AbCdEfGhIj"
+	base.CreatedAt = time.Now().UnixMilli()
+	if _, ok := openIncoming(base, "topic", "JihGfEdCbA9876543210", nil); ok {
+		t.Fatal("oversized incoming SDP was accepted")
+	}
+	base.SDP = "v=0\r\n"
+	base.Encrypted = strings.Repeat("e", maxEncryptedSignalBytes+1)
+	if _, ok := openIncoming(base, "topic", "JihGfEdCbA9876543210", nil); ok {
+		t.Fatal("oversized encrypted signal was accepted")
+	}
+}
+
 func TestStreamDataEOFAndAbort(t *testing.T) {
 	var sent []Frame
 	var sentMu sync.Mutex
@@ -148,6 +172,44 @@ func TestStreamDataEOFAndAbort(t *testing.T) {
 	}
 	if !sawData || !sawEOF {
 		t.Fatalf("sent frames = %+v", sent)
+	}
+}
+
+func TestStreamRejectsReceiveQueueOverflow(t *testing.T) {
+	stream := NewStream(func(Frame) error { return nil }, nil)
+	defer stream.Close()
+	if err := stream.Receive(Frame{Type: FrameData, Payload: make([]byte, maxReadQueueBytes)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.Receive(Frame{Type: FrameData, Payload: []byte{1}}); err == nil {
+		t.Fatal("receive queue overflow was accepted")
+	}
+	if stream.readQueued > maxReadQueueBytes {
+		t.Fatalf("queued bytes = %d, maximum = %d", stream.readQueued, maxReadQueueBytes)
+	}
+}
+
+func TestListenerHandshakeLimits(t *testing.T) {
+	listener := &Listener{peerHandshakes: make(map[string]int)}
+	const firstPeer = "0123456789AbCdEfGhIj"
+	if !listener.beginHandshake(firstPeer) || !listener.beginHandshake(firstPeer) {
+		t.Fatal("per-peer handshake limit rejected an allowed handshake")
+	}
+	if listener.beginHandshake(firstPeer) {
+		t.Fatal("per-peer handshake limit was not enforced")
+	}
+	for index := 0; index < maxConcurrentHandshakes-maxConcurrentHandshakesPeer; index++ {
+		remote := fmt.Sprintf("%020d", index)
+		if !listener.beginHandshake(remote) {
+			t.Fatalf("global handshake slot %d was rejected", index)
+		}
+	}
+	if listener.beginHandshake("Z123456789AbCdEfGhIj") {
+		t.Fatal("global handshake limit was not enforced")
+	}
+	listener.endHandshake(firstPeer)
+	if !listener.beginHandshake("Z123456789AbCdEfGhIj") {
+		t.Fatal("released handshake slot was not reusable")
 	}
 }
 

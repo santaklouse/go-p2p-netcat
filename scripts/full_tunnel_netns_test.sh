@@ -165,6 +165,7 @@ p2pnc_test_peer_id="$(ip netns exec "${p2pnc_test_server}" \
 	"${p2pnc_test_binary}" id -I "${p2pnc_test_dir}/server-state/identity")"
 ip netns exec "${p2pnc_test_server}" "${p2pnc_test_binary}" \
 	-u --udp-idle-timeout 0 -l -k -4 \
+	--allow-unauthenticated-listener \
 	--identity "${p2pnc_test_dir}/server-state/identity" \
 	--transport-port 4001 --no-dht --no-mdns --no-pubsub --no-quic --no-webrtc \
 	-d 127.0.0.1 -p 51820 35182 \

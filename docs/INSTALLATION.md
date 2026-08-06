@@ -210,11 +210,20 @@ the same explicit `--relay` multiaddr on both sides.
 ## Interactive PTY
 
 ```bash
-# listener
-p2p-nc -l -i -v 31337
+install -d -m 0700 ~/.config/p2p-netcat
+p2p-nc token 31337 \
+  --identity ~/.config/p2p-netcat/identity.key \
+  >~/.config/p2p-netcat/pty.token
+chmod 0600 ~/.config/p2p-netcat/pty.token
 
-# client
-p2p-nc -i -v 12D3KooWQ3uxpHgjDKE6vGmvzKS8RPbxUDLwJ7XCLaD6YXdUfbR9 31337
+# listener
+p2p-nc -l -i -v \
+  --identity ~/.config/p2p-netcat/identity.key \
+  --pairing-token-file ~/.config/p2p-netcat/pty.token
+
+# authorized client
+p2p-nc -i -v \
+  --pairing-token-file ~/.config/p2p-netcat/pty.token
 ```
 
 PTY uses a native pseudoterminal on Unix and ConPTY on Windows. Exit the client

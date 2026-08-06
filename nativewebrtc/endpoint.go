@@ -27,6 +27,12 @@ var DefaultICEServers = []string{
 	"stun:stun.internetcalls.com:3478",
 }
 
+const (
+	nativeFrameQueueDepth       = 128
+	maxConcurrentHandshakes     = 32
+	maxConcurrentHandshakesPeer = 2
+)
+
 type EndpointOptions struct {
 	ICEServers  []string
 	NostrURLs   []string
@@ -56,7 +62,7 @@ func newNativePeer(initiator bool, iceServers []string) (*nativePeer, error) {
 		return nil, err
 	}
 	value := &nativePeer{
-		connection: connection, frames: make(chan Frame, 128),
+		connection: connection, frames: make(chan Frame, nativeFrameQueueDepth),
 		open: make(chan struct{}), closed: make(chan struct{}),
 	}
 	connection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
@@ -114,6 +120,8 @@ func (p *nativePeer) attach(channel *webrtc.DataChannel) {
 		select {
 		case p.frames <- frame:
 		case <-p.closed:
+		default:
+			_ = p.Close()
 		}
 	})
 	channel.OnClose(func() { _ = p.Close() })
@@ -486,7 +494,11 @@ func dialAuthenticatedPeer(
 	}
 	for {
 		select {
-		case signal := <-signaling.Events():
+		case signal, ok := <-signaling.Events():
+			if !ok {
+				_ = closePeer()
+				return nil, errors.New("native WebRTC signaling session closed")
+			}
 			if signal.SessionID != sessionID || signal.To != signaling.PeerID() {
 				continue
 			}
@@ -647,8 +659,13 @@ type Listener struct {
 	wg       sync.WaitGroup
 	once     sync.Once
 	mu       sync.Mutex
+	closed   bool
 	streams  map[string]*listenerStream
 	onStream func(*Stream, string)
+
+	handshakeMu    sync.Mutex
+	handshakes     int
+	peerHandshakes map[string]int
 }
 
 type listenerStream struct {
@@ -732,6 +749,7 @@ func StartListenerWithSignalingSessions(
 	listener := &Listener{
 		cancel: cancel, sessions: sessions,
 		streams: make(map[string]*listenerStream), onStream: onStream,
+		peerHandshakes: make(map[string]int),
 	}
 	for _, session := range sessions {
 		listener.wg.Add(1)
@@ -739,16 +757,25 @@ func StartListenerWithSignalingSessions(
 			defer listener.wg.Done()
 			for {
 				select {
-				case signal := <-signaling.Events():
+				case signal, ok := <-signaling.Events():
+					if !ok {
+						return
+					}
 					if signal.Type == "offer" {
-						go func() {
+						if !listener.beginHandshake(signal.From) {
+							continue
+						}
+						listener.wg.Add(1)
+						go func(signal Signal) {
+							defer listener.wg.Done()
+							defer listener.endHandshake(signal.From)
 							p2p, acceptErr := answerNativeOffer(
 								ctx, signaling, privateKey, service, iceServers, signal,
 							)
 							if acceptErr == nil {
 								listener.activate(signal.From, p2p)
 							}
-						}()
+						}(signal)
 					}
 				case <-ctx.Done():
 					return
@@ -759,6 +786,30 @@ func StartListenerWithSignalingSessions(
 	return listener, nil
 }
 
+func (l *Listener) beginHandshake(remote string) bool {
+	if !clientIDPattern.MatchString(remote) {
+		return false
+	}
+	l.handshakeMu.Lock()
+	defer l.handshakeMu.Unlock()
+	if l.handshakes >= maxConcurrentHandshakes || l.peerHandshakes[remote] >= maxConcurrentHandshakesPeer {
+		return false
+	}
+	l.handshakes++
+	l.peerHandshakes[remote]++
+	return true
+}
+
+func (l *Listener) endHandshake(remote string) {
+	l.handshakeMu.Lock()
+	l.handshakes--
+	l.peerHandshakes[remote]--
+	if l.peerHandshakes[remote] == 0 {
+		delete(l.peerHandshakes, remote)
+	}
+	l.handshakeMu.Unlock()
+}
+
 func (l *Listener) Close() error {
 	var result error
 	l.once.Do(func() {
@@ -767,6 +818,7 @@ func (l *Listener) Close() error {
 			result = errors.Join(result, session.Close())
 		}
 		l.mu.Lock()
+		l.closed = true
 		for remote, entry := range l.streams {
 			if entry.timer != nil {
 				entry.timer.Stop()
@@ -840,6 +892,11 @@ func answerNativeOffer(
 
 func (l *Listener) activate(remote string, p2p *nativePeer) {
 	l.mu.Lock()
+	if l.closed {
+		l.mu.Unlock()
+		_ = p2p.Close()
+		return
+	}
 	entry := l.streams[remote]
 	isNew := entry == nil
 	if isNew {

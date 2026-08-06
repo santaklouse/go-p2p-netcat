@@ -19,18 +19,24 @@ libp2p PeerId.
 | `-S, --socks` | Runs a SOCKS4, SOCKS4a, and SOCKS5 CONNECT proxy on the listener side. |
 | `-T, --tor` | Runs a client through `torsocks` and requires an explicit TCP/WS/WSS Circuit Relay. |
 | `-i, --interactive` | Listener: spawn a true PTY login shell per client. Client: raw TTY with resize and control-character forwarding. |
+| `--allow-unauthenticated-listener` | Explicitly expose a privileged listener without a pairing token. Unsafe; intended only for deliberately public compatibility scenarios. |
 
 The old internal transport-port meaning of `-p` moved to
 `--transport-port`. The old short identity flag moved from `-i` to `-I`; the
 long `--identity` spelling did not change. EOF delay remains available as
 `--quit-delay` without the old `-q` alias.
 
+Privileged listener modes require a pairing token by default. To keep this
+document focused on gs-netcat option mapping, its listener snippets use the
+explicit public-access override. Production commands should replace that flag
+with a service-scoped `--pairing-token-file`.
+
 ## TCP forwarding: `-d` and `-p`
 
 The listener connects each accepted P2P stream to the configured TCP target:
 
 ```bash
-p2p-nc -l -d 192.168.6.7 -p 22 31337
+p2p-nc -l --allow-unauthenticated-listener -d 192.168.6.7 -p 22 31337
 ```
 
 If `-d` is omitted while listener `-p` is present, the destination host is
@@ -62,7 +68,7 @@ The listener connects every accepted datagram P2P stream to one fixed UDP
 target:
 
 ```bash
-p2p-nc -u -l -k -d 192.168.6.7 -p 51820 35182
+p2p-nc -u -l -k --allow-unauthenticated-listener -d 192.168.6.7 -p 51820 35182
 ```
 
 The client binds a local UDP port. Each distinct source endpoint gets an
@@ -83,15 +89,15 @@ or libp2p WebRTC Direct is preferable for VPN traffic when available.
 
 `-u` requires `-p` and cannot be combined with raw stdin/stdout, `-e`, `-i`,
 `-S`, `-z`, or `--quit-delay`. Go peers can carry UDP forwarding through the
-custom Nostr/WebTorrent native WebRTC adapter for NAT traversal. The browser
-client does not expose a local UDP socket.
+custom Nostr/WebTorrent native WebRTC adapter for NAT traversal when a pairing
+token is present. The browser client does not expose a local UDP socket.
 
 ## SOCKS proxy: `-S`
 
 Start the remote SOCKS endpoint:
 
 ```bash
-p2p-nc -l -S 31337
+p2p-nc -l -S --allow-unauthenticated-listener 31337
 ```
 
 Expose it locally through the ordinary client forwarding mode:
@@ -111,7 +117,7 @@ forwards one fixed UDP destination; it is not a SOCKS UDP proxy.
 Start a login shell on the listener:
 
 ```bash
-p2p-nc -l -i 31337
+p2p-nc -l -i --allow-unauthenticated-listener 31337
 ```
 
 Connect from a real terminal:

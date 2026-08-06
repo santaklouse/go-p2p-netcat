@@ -18,8 +18,12 @@ import (
 )
 
 const (
-	SignalVersion = 2
-	signalTTL     = 120 * time.Second
+	SignalVersion            = 2
+	signalTTL                = 120 * time.Second
+	maxSDPBytes              = 256 * 1024
+	maxCandidateBytes        = 64 * 1024
+	maxEncryptedSignalBytes  = 512 * 1024
+	maxSignalingMessageBytes = 512 * 1024
 )
 
 var (
@@ -124,8 +128,14 @@ func prepareOutgoing(signal Signal, topic, peerID string, token *pairing.Token) 
 	default:
 		return Signal{}, fmt.Errorf("unsupported native signaling type: %s", signal.Type)
 	}
+	if err := validateSignalPayloadSizes(signal); err != nil {
+		return Signal{}, err
+	}
 	if len(signal.SessionID) < 8 || len(signal.SessionID) > 128 {
 		return Signal{}, errors.New("native signaling sessionId is invalid")
+	}
+	if signal.To != "" && !clientIDPattern.MatchString(signal.To) {
+		return Signal{}, errors.New("native signaling destination peerId is invalid")
 	}
 	signal.Version = SignalVersion
 	signal.Room = topic
@@ -158,6 +168,12 @@ func prepareOutgoing(signal Signal, topic, peerID string, token *pairing.Token) 
 }
 
 func openIncoming(signal Signal, topic, peerID string, token *pairing.Token) (Signal, bool) {
+	if len(signal.Encrypted) > maxEncryptedSignalBytes ||
+		len(signal.SessionID) < 8 || len(signal.SessionID) > 128 ||
+		!clientIDPattern.MatchString(signal.From) ||
+		(signal.To != "" && !clientIDPattern.MatchString(signal.To)) {
+		return Signal{}, false
+	}
 	if token != nil {
 		if signal.Encrypted == "" {
 			return Signal{}, false
@@ -209,7 +225,26 @@ func openIncoming(signal Signal, topic, peerID string, token *pairing.Token) (Si
 	default:
 		return Signal{}, false
 	}
+	if validateSignalPayloadSizes(signal) != nil {
+		return Signal{}, false
+	}
 	return signal, true
+}
+
+func validateSignalPayloadSizes(signal Signal) error {
+	if len(signal.SDP) > maxSDPBytes {
+		return fmt.Errorf("native signaling SDP exceeds %d bytes", maxSDPBytes)
+	}
+	if signal.Candidate != nil {
+		encoded, err := json.Marshal(signal.Candidate)
+		if err != nil {
+			return fmt.Errorf("encode native signaling candidate: %w", err)
+		}
+		if len(encoded) > maxCandidateBytes {
+			return fmt.Errorf("native signaling candidate exceeds %d bytes", maxCandidateBytes)
+		}
+	}
+	return nil
 }
 
 func signalAdditionalData(signal Signal) ([]byte, error) {

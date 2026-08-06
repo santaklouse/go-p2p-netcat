@@ -150,6 +150,7 @@ func (s *TorrentSession) connectLoop(entry *torrentSocket) {
 			retry = min(30*time.Second, retry*2)
 			continue
 		}
+		socket.SetReadLimit(maxSignalingMessageBytes)
 		retry = time.Second
 		entry.mu.Lock()
 		entry.socket = socket

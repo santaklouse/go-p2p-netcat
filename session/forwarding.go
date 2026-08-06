@@ -12,6 +12,11 @@ import (
 	"time"
 )
 
+const (
+	maxSOCKS4UserIDLength = 255
+	maxSOCKS4DomainLength = 255
+)
+
 func TCPForward(ctx context.Context, stream Stream, host string, port int, timeout time.Duration) error {
 	dialer := net.Dialer{Timeout: timeout}
 	connection, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(port)))
@@ -26,9 +31,23 @@ func TCPForward(ctx context.Context, stream Stream, host string, port int, timeo
 }
 
 func SOCKS(ctx context.Context, stream Stream, timeout time.Duration) error {
+	if timeout <= 0 {
+		timeout = 60 * time.Second
+	}
+	handshakeExpired := make(chan struct{})
+	handshakeTimer := time.AfterFunc(timeout, func() {
+		close(handshakeExpired)
+		_ = stream.Reset()
+	})
 	reader := bufio.NewReader(stream)
 	version, err := reader.ReadByte()
 	if err != nil {
+		handshakeTimer.Stop()
+		select {
+		case <-handshakeExpired:
+			return errors.New("SOCKS handshake timed out")
+		default:
+		}
 		return err
 	}
 	var host string
@@ -43,7 +62,16 @@ func SOCKS(ctx context.Context, stream Stream, timeout time.Duration) error {
 		err = fmt.Errorf("unsupported SOCKS version: %d", version)
 	}
 	if err != nil {
+		handshakeTimer.Stop()
+		select {
+		case <-handshakeExpired:
+			return errors.New("SOCKS handshake timed out")
+		default:
+		}
 		return err
+	}
+	if !handshakeTimer.Stop() {
+		return errors.New("SOCKS handshake timed out")
 	}
 	dialer := net.Dialer{Timeout: timeout}
 	connection, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(port)))
@@ -173,7 +201,7 @@ func negotiateSOCKS4(reader *bufio.Reader, writer io.Writer) (string, int, []byt
 	if _, err := io.ReadFull(reader, ip); err != nil {
 		return "", 0, nil, nil, err
 	}
-	if _, err := reader.ReadString(0); err != nil {
+	if _, err := readSOCKS4Field(reader, maxSOCKS4UserIDLength, "user ID"); err != nil {
 		return "", 0, nil, nil, err
 	}
 	if command != 1 {
@@ -181,8 +209,7 @@ func negotiateSOCKS4(reader *bufio.Reader, writer io.Writer) (string, int, []byt
 	}
 	host := net.IP(ip).String()
 	if ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] != 0 {
-		host, err = reader.ReadString(0)
-		host = host[:len(host)-1]
+		host, err = readSOCKS4Field(reader, maxSOCKS4DomainLength, "domain")
 		if err != nil {
 			return "", 0, nil, nil, err
 		}
@@ -190,6 +217,24 @@ func negotiateSOCKS4(reader *bufio.Reader, writer io.Writer) (string, int, []byt
 	success := append([]byte{0, 0x5a}, append(portBytes, ip...)...)
 	failure := append([]byte{0, 0x5b}, append(portBytes, ip...)...)
 	return host, int(binary.BigEndian.Uint16(portBytes)), success, failure, nil
+}
+
+func readSOCKS4Field(reader *bufio.Reader, maximum int, name string) (string, error) {
+	value := make([]byte, 0, min(maximum, 64))
+	for len(value) <= maximum {
+		current, err := reader.ReadByte()
+		if err != nil {
+			return "", err
+		}
+		if current == 0 {
+			return string(value), nil
+		}
+		if len(value) == maximum {
+			return "", fmt.Errorf("SOCKS4 %s exceeds %d bytes", name, maximum)
+		}
+		value = append(value, current)
+	}
+	panic("unreachable")
 }
 
 func bridgeBuffered(ctx context.Context, stream Stream, reader io.Reader, connection net.Conn) error {

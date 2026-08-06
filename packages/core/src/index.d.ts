@@ -94,6 +94,7 @@ export class WebRtcStream implements AsyncIterable<Uint8Array> {
     sendControl: (control: string) => void | Promise<void>;
     onFinalize?: () => void;
     flowWindowBytes?: number;
+    maxReadQueueBytes?: number;
     keepAliveIntervalMs?: number;
   });
   send(chunk: ArrayBuffer | ArrayBufferView): boolean;

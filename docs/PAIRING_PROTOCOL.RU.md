@@ -43,21 +43,24 @@ p2p-nc token 31337 --identity ~/.config/p2p-netcat/identity.key
 p2p-nc token 31337 \
   --identity ~/.config/p2p-netcat/identity.key \
   --expires-in 86400 \
-  --relay /dns4/relay.example/tcp/443/wss/p2p/12D3KooWEqeQRAJ61HSv9yMPk8yzjke7NxmTFcvFt4GzwXxzVjXW
+  --relay /dns4/relay.example/tcp/443/wss/p2p/12D3KooWEqeQRAJ61HSv9yMPk8yzjke7NxmTFcvFt4GzwXxzVjXW \
+  >~/.config/p2p-netcat/shell.token
+chmod 0600 ~/.config/p2p-netcat/shell.token
 ```
 
 Запустить слушатель, не раскрывая секрет в списке процессов:
 
 ```bash
-export P2P_NETCAT_TOKEN='pnc1_...'
-p2p-nc -l -i
+p2p-nc -l -i \
+  --identity ~/.config/p2p-netcat/identity.key \
+  --pairing-token-file ~/.config/p2p-netcat/shell.token
 ```
 
 Подключить другой CLI:
 
 ```bash
-export P2P_NETCAT_TOKEN='pnc1_...'
-p2p-nc -i
+p2p-nc -i \
+  --pairing-token-file ~/.config/p2p-netcat/shell.token
 ```
 
 PeerId и логический порт можно не указывать: они являются проверяемыми полями

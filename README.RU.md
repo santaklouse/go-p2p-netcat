@@ -272,8 +272,11 @@ listener. Явный override ниже также исправляет выпу�
 Android default:
 
 ```bash
-adb shell 'P2P_NETCAT_LISTENER_LOCK_DIR=/data/local/tmp/p2p-netcat/listeners /data/local/tmp/p2p-nc -lik --identity /data/local/tmp/p2p-nc-identity.key 31337'
+adb shell 'P2P_NETCAT_LISTENER_LOCK_DIR=/data/local/tmp/p2p-netcat/listeners /data/local/tmp/p2p-nc -lik --allow-unauthenticated-listener --identity /data/local/tmp/p2p-nc-identity.key 31337'
 ```
+
+Эта Android-команда намеренно демонстрирует явный override публичного доступа.
+Для настоящего PTY-listener используйте pairing token.
 
 ### Установка через Go
 
@@ -365,6 +368,17 @@ wait "$DEMO_PID"
 cat "$DEMO_DIR/received.txt"
 ```
 
+### Безопасные значения по умолчанию
+
+Raw stream listener остаётся публичным для сценариев в стиле netcat. Listener
+`-i`, `-e`, `-S`, TCP forwarding и UDP forwarding требуют pairing token. Явный
+override `--allow-unauthenticated-listener` предназначен только для намеренно
+публичного сервиса и выводит предупреждение. Собственный Native WebRTC через
+Nostr/WebTorrent включается только с pairing token; отдельный аварийный флаг
+`--allow-unauthenticated-native-webrtc` небезопасен. Стандартный libp2p WebRTC
+Direct остаётся доступным без token, потому что Noise привязывает его к
+ожидаемому PeerId.
+
 ## Приватный pairing
 
 Создать token из постоянной identity:
@@ -420,23 +434,39 @@ Windows. Последующие команды listener и client использ
 
 ## Forwarding, SOCKS и PTY
 
+Создайте привязанные к сервисам token для примеров ниже:
+
+```bash
+install -d -m 0700 "$HOME/.config/p2p-netcat"
+./p2p-nc token --identity "$HOME/.config/p2p-netcat/identity.key" 15432 >"$HOME/.config/p2p-netcat/postgres.token"
+./p2p-nc token --identity "$HOME/.config/p2p-netcat/identity.key" 35182 >"$HOME/.config/p2p-netcat/wireguard.token"
+./p2p-nc token --identity "$HOME/.config/p2p-netcat/identity.key" 1080 >"$HOME/.config/p2p-netcat/socks.token"
+./p2p-nc token --identity "$HOME/.config/p2p-netcat/identity.key" 2222 >"$HOME/.config/p2p-netcat/shell.token"
+chmod 0600 "$HOME/.config/p2p-netcat/"*.token
+```
+
 Удалённый TCP forwarding к `127.0.0.1:5432`:
 
 ```bash
-./p2p-nc -l 15432 -p 5432
-./p2p-nc -p 15432 12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 15432
+./p2p-nc -l -p 5432 \
+  --identity "$HOME/.config/p2p-netcat/identity.key" \
+  --pairing-token-file "$HOME/.config/p2p-netcat/postgres.token"
+./p2p-nc -p 15432 \
+  --pairing-token-file "$HOME/.config/p2p-netcat/postgres.token"
 ```
 
 Перенаправление локального UDP endpoint к WireGuard на удалённом пире:
 
 ```bash
 # Машина с WireGuard-сервером
-./p2p-nc -u -l -d 127.0.0.1 -p 51820 35182
+./p2p-nc -u -l -d 127.0.0.1 -p 51820 \
+  --identity "$HOME/.config/p2p-netcat/identity.key" \
+  --pairing-token-file "$HOME/.config/p2p-netcat/wireguard.token"
 
 # Машина с WireGuard-клиентом
 sudo ./deploy/wireguard-full-tunnel.sh -- \
   /usr/local/bin/p2p-nc -u --udp-idle-timeout 0 -p 15182 \
-  12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 35182
+  --pairing-token-file "$HOME/.config/p2p-netcat/wireguard.token"
 ```
 
 В WireGuard-конфигурации клиента укажите peer endpoint
@@ -453,16 +483,22 @@ sockets должны продолжать использовать физиче�
 SOCKS server на удалённой стороне:
 
 ```bash
-./p2p-nc -l -S 1080
-./p2p-nc -p 1080 12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 1080
+./p2p-nc -l -S \
+  --identity "$HOME/.config/p2p-netcat/identity.key" \
+  --pairing-token-file "$HOME/.config/p2p-netcat/socks.token"
+./p2p-nc -p 1080 \
+  --pairing-token-file "$HOME/.config/p2p-netcat/socks.token"
 curl --socks5-hostname 127.0.0.1:1080 https://example.com/
 ```
 
 Интерактивный login shell:
 
 ```bash
-./p2p-nc -l -i 2222
-./p2p-nc -i 12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 2222
+./p2p-nc -l -i \
+  --identity "$HOME/.config/p2p-netcat/identity.key" \
+  --pairing-token-file "$HOME/.config/p2p-netcat/shell.token"
+./p2p-nc -i \
+  --pairing-token-file "$HOME/.config/p2p-netcat/shell.token"
 ```
 
 В PTY-клиенте последовательность `Ctrl-E`, затем `q` закрывает сеанс.

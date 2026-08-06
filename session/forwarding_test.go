@@ -61,3 +61,31 @@ func TestNegotiateSOCKS4aDomain(t *testing.T) {
 		t.Fatalf("unexpected SOCKS4 responses: success=%v failure=%v", success, failure)
 	}
 }
+
+func TestNegotiateSOCKS4RejectsOversizedFields(t *testing.T) {
+	tests := []struct {
+		name    string
+		request []byte
+	}{
+		{
+			name:    "user ID",
+			request: append([]byte{1, 0x01, 0xbb, 127, 0, 0, 1}, bytes.Repeat([]byte{'u'}, maxSOCKS4UserIDLength+1)...),
+		},
+		{
+			name: "domain",
+			request: append(
+				append([]byte{1, 0x01, 0xbb, 0, 0, 0, 1, 0}, bytes.Repeat([]byte{'d'}, maxSOCKS4DomainLength+1)...),
+				0,
+			),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, _, _, _, err := negotiateSOCKS4(
+				bufio.NewReader(bytes.NewReader(test.request)), io.Discard,
+			); err == nil {
+				t.Fatal("oversized SOCKS4 field was accepted")
+			}
+		})
+	}
+}

@@ -289,6 +289,8 @@ export class WebRtcStream {
   #sendControl
   #onFinalize
   #flowWindowBytes
+  #maxReadQueueBytes
+  #queuedReadBytes = 0
   #flowEnabled = false
   #inFlightBytes = 0
   #flowWaiters = []
@@ -306,10 +308,14 @@ export class WebRtcStream {
     sendControl,
     onFinalize = () => {},
     flowWindowBytes = 256 * 1024,
+    maxReadQueueBytes = 1024 * 1024,
     keepAliveIntervalMs = 15_000
   }) {
     if (!Number.isSafeInteger(flowWindowBytes) || flowWindowBytes < 1) {
       throw new RangeError('flowWindowBytes must be a positive integer')
+    }
+    if (!Number.isSafeInteger(maxReadQueueBytes) || maxReadQueueBytes < 1) {
+      throw new RangeError('maxReadQueueBytes must be a positive integer')
     }
     if (!Number.isSafeInteger(keepAliveIntervalMs) || keepAliveIntervalMs < 0) {
       throw new RangeError('keepAliveIntervalMs must be a non-negative integer')
@@ -318,6 +324,7 @@ export class WebRtcStream {
     this.#sendControl = sendControl
     this.#onFinalize = onFinalize
     this.#flowWindowBytes = flowWindowBytes
+    this.#maxReadQueueBytes = maxReadQueueBytes
 
     queueMicrotask(() => {
       if (this.status === 'open') void this.#sendControlSafely('flow:1').catch(() => {})
@@ -381,7 +388,14 @@ export class WebRtcStream {
     const bytes = asBytes(chunk).slice()
     const waiter = this.#waiters.shift()
     if (waiter != null) waiter.resolve({ value: bytes, done: false })
-    else this.#items.push(bytes)
+    else {
+      if (bytes.byteLength > this.#maxReadQueueBytes - this.#queuedReadBytes) {
+        this.abort(new Error(`WebRTC receive queue exceeds ${this.#maxReadQueueBytes} bytes`))
+        return
+      }
+      this.#items.push(bytes)
+      this.#queuedReadBytes += bytes.byteLength
+    }
   }
 
   receiveControl (control) {
@@ -467,6 +481,7 @@ export class WebRtcStream {
         }
         const item = this.#items.shift()
         if (item != null) {
+          this.#queuedReadBytes -= item.byteLength
           consumedBytes = item.byteLength
           return { value: item, done: false }
         }
@@ -541,6 +556,8 @@ export class WebRtcStream {
 
   #fail (error) {
     this.#readClosed = true
+    this.#items.length = 0
+    this.#queuedReadBytes = 0
     for (const waiter of this.#waiters.splice(0)) waiter.reject(error)
   }
 
