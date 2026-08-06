@@ -44,6 +44,16 @@ func TestAcquireRejectsDuplicateAndReleasesPort(t *testing.T) {
 	}
 }
 
+func TestAndroidDefaultLockDirectoryUsesWritableTemporaryStorage(t *testing.T) {
+	directory, err := defaultLockDirectory("android", "/data/local/tmp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if directory != "/data/local/tmp/p2p-netcat/listeners" {
+		t.Fatalf("Android listener lock directory = %q", directory)
+	}
+}
+
 func TestAcquireRejectsAnotherProcess(t *testing.T) {
 	directory := t.TempDir()
 	t.Setenv(DirectoryEnvironment, directory)

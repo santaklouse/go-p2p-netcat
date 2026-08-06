@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 )
 
@@ -84,6 +85,13 @@ func (lock *Lock) Close() error {
 func lockDirectory() (string, error) {
 	if directory := os.Getenv(DirectoryEnvironment); directory != "" {
 		return filepath.Abs(directory)
+	}
+	return defaultLockDirectory(runtime.GOOS, os.TempDir())
+}
+
+func defaultLockDirectory(goos, tempDirectory string) (string, error) {
+	if goos == "android" {
+		return filepath.Join(tempDirectory, "p2p-netcat", "listeners"), nil
 	}
 	directory, err := os.UserCacheDir()
 	if err != nil {

@@ -268,6 +268,14 @@ identity is required:
 adb shell /data/local/tmp/p2p-nc id --identity /data/local/tmp/p2p-nc-identity.key
 ```
 
+Android releases use `/data/local/tmp/p2p-netcat/listeners` for listener lock
+files. The explicit environment override below also makes releases that predate
+the Android default work correctly:
+
+```bash
+adb shell 'P2P_NETCAT_LISTENER_LOCK_DIR=/data/local/tmp/p2p-netcat/listeners /data/local/tmp/p2p-nc -lik --identity /data/local/tmp/p2p-nc-identity.key 31337'
+```
+
 ### Install with Go
 
 With a recent Go installation and automatic toolchain downloads enabled:
