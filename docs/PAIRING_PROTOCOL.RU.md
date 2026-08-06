@@ -65,6 +65,30 @@ token. Для файла с ограниченными правами есть `
 браузере тот же token вводится в разделе «Приватный доступ и relay»,
 автоматически заполняет PeerId и порт и не сохраняется в `localStorage`.
 
+Для защищённого паролем хранения или передачи создайте файл `pnc1e_`:
+
+```bash
+p2p-nc token 31337 \
+  --identity ~/.config/p2p-netcat/identity.key \
+  --encrypt-to ~/.config/p2p-netcat/pairing.token.enc
+```
+
+Пароль дважды читается из терминала без отображения. Передайте зашифрованный
+файл и один раз разблокируйте его на каждой машине:
+
+```bash
+p2p-nc token unlock \
+  ~/.config/p2p-netcat/pairing.token.enc \
+  --output ~/.config/p2p-netcat/pairing.token
+```
+
+При разблокировке пароль читается один раз и создаётся новый файл с правами
+`0600`, содержащий неизменённый bearer-token `pnc1_`. Последующие команды
+listener и client используют этот файл через `--pairing-token-file` без пароля.
+Существующие output-файлы никогда не перезаписываются. Для non-interactive
+режима есть `--password-file`, но в Unix password-файл не должен предоставлять
+никаких прав group или other.
+
 ## Алгоритм соединения
 
 ```mermaid
@@ -119,6 +143,39 @@ NaN и бесконечности отклоняются.
 Token является bearer credential. Его нельзя записывать в логи, URL, хранилище
 браузера, shell history или git. Предпочтителен environment variable или файл,
 доступный только владельцу.
+
+## Зашифрованный паролем token-файл
+
+Необязательный envelope для хранения и передачи отделён от сетевого token:
+
+```text
+pnc1e_ || base64url(canonical-CBOR-map)
+```
+
+| Числовой ключ | Тип | Значение |
+|---:|---|---|
+| `0` | unsigned integer | версия envelope, строго `1` |
+| `1` | UTF-8 text | KDF, строго `argon2id` |
+| `2` | unsigned integer | Argon2id time cost, строго `3` |
+| `3` | unsigned integer | память Argon2id в KiB, строго `65536` |
+| `4` | unsigned integer | параллелизм Argon2id, строго `4` |
+| `5` | byte string | случайная 16-байтная salt |
+| `6` | UTF-8 text | cipher, строго `aes-256-gcm` |
+| `7` | byte string | случайный 12-байтный nonce |
+| `8` | byte string | зашифрованный и аутентифицированный текст `pnc1_` |
+
+Параметры Argon2id соответствуют [второму рекомендованному профилю RFC
+9106](https://www.rfc-editor.org/rfc/rfc9106.html#section-7.4) для окружений с
+ограниченной памятью. AES-256-GCM аутентифицирует зашифрованный token и
+фиксированный домен `p2p-netcat/encrypted-pairing-token/v1`. Пароль содержит
+8..1024 байт. Неверный пароль и повреждённый ciphertext возвращают одинаковую
+ошибку. Перед записью расшифрованный внутренний token проверяется.
+
+Разблокированный файл `pnc1_` остаётся bearer credential. Шифрование защищает
+файл только до разблокировки; локальная plaintext-копия защищается правами
+файловой системы и обычными правилами работы с secret-файлами. Browser peers
+продолжают принимать разблокированный token `pnc1_`, поэтому pairing wire
+protocol не меняется.
 
 ## Вывод ключей
 

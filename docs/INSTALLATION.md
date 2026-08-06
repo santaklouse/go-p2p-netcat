@@ -241,6 +241,23 @@ Create a private token:
 p2p-nc token --identity ~/.config/p2p-netcat/identity.key 31337
 ```
 
+To protect the token during storage or transfer, write a password-encrypted
+file and unlock it once into a local `0600` token file:
+
+```bash
+p2p-nc token 31337 \
+  --identity ~/.config/p2p-netcat/identity.key \
+  --encrypt-to ~/.config/p2p-netcat/pairing.token.enc
+p2p-nc token unlock \
+  ~/.config/p2p-netcat/pairing.token.enc \
+  --output ~/.config/p2p-netcat/pairing.token
+```
+
+Both password prompts read from a terminal without echo. For non-interactive
+automation, `--password-file` accepts a regular file that has no group or other
+permissions. The unlocked file is a bearer credential and no password is
+requested when it is later passed through `--pairing-token-file`.
+
 Pass it via `--pairing-token`, `--pairing-token-file`, or
 `P2P_NETCAT_TOKEN`. Private mode derives secret DHT/signaling rendezvous,
 encrypts native signaling, and performs the mutual admission handshake before

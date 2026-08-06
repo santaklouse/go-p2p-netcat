@@ -386,6 +386,28 @@ chmod 600 "$HOME/.config/p2p-netcat/pairing.token"
 Token содержит PeerId и логический порт, поэтому в приватном режиме их можно не
 передавать отдельными аргументами. Token-файл следует хранить с правами `0600`.
 
+Для защищённого паролем хранения или передачи создайте зашифрованный token-файл:
+
+```bash
+./p2p-nc token 31337 \
+  --identity "$HOME/.config/p2p-netcat/identity.key" \
+  --encrypt-to "$HOME/.config/p2p-netcat/pairing.token.enc"
+```
+
+Команда дважды запрашивает пароль без отображения. После получения
+зашифрованного файла один раз разблокируйте его на каждой машине:
+
+```bash
+./p2p-nc token unlock \
+  "$HOME/.config/p2p-netcat/pairing.token.enc" \
+  --output "$HOME/.config/p2p-netcat/pairing.token"
+```
+
+При разблокировке пароль запрашивается один раз и создаётся новый bearer-token
+файл с правами `0600`. Последующие команды listener и client используют
+`--pairing-token-file` без пароля. Ни одна команда не перезаписывает уже
+существующий output-файл.
+
 ## Forwarding, SOCKS и PTY
 
 Удалённый TCP forwarding к `127.0.0.1:5432`:

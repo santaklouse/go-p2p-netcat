@@ -39,6 +39,10 @@ Pairing-token mode suppresses public discovery, derives private DHT/signaling
 rendezvous, encrypts signaling, and authenticates the stream before exposing
 application bytes.
 
+The Go CLI can wrap a `pnc1_` bearer token in a password-encrypted `pnc1e_`
+storage envelope. Unlocking restores the unchanged `pnc1_` token, so this
+at-rest format does not alter the Go/browser pairing or network wire protocol.
+
 UDP mode races the standard libp2p datagram stream with the custom native
 WebRTC stream. Native WebRTC uses Nostr/WebTorrent signaling and ICE/STUN for
 NAT traversal without a user-operated media relay. Direct QUIC and libp2p

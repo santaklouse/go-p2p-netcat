@@ -20,6 +20,7 @@ import (
 	p2pnode "github.com/santaklouse/go-p2p-netcat/p2p"
 	"github.com/santaklouse/go-p2p-netcat/protocol/admission"
 	"github.com/santaklouse/go-p2p-netcat/protocol/pairing"
+	"github.com/santaklouse/go-p2p-netcat/protocol/tokenfile"
 	relayserver "github.com/santaklouse/go-p2p-netcat/relay"
 	"github.com/santaklouse/go-p2p-netcat/session"
 	"github.com/spf13/cobra"
@@ -800,11 +801,16 @@ func newTokenCommand() *cobra.Command {
 	var path string
 	var relays []string
 	var expiresIn int
+	var encryptTo string
+	var passwordFile string
 	command := &cobra.Command{
 		Use:   "token [logical-port]",
 		Short: "create a private pairing token",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
+			if passwordFile != "" && encryptTo == "" {
+				return errors.New("--password-file requires --encrypt-to")
+			}
 			if path == "" {
 				path = identity.DefaultPath()
 			}
@@ -847,13 +853,68 @@ func newTokenCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(os.Stdout, encoded)
+			if encryptTo == "" {
+				fmt.Fprintln(os.Stdout, encoded)
+				return nil
+			}
+			password, err := readTokenPassword(passwordFile, true)
+			if err != nil {
+				return err
+			}
+			defer clear(password)
+			encrypted, err := tokenfile.Encrypt(encoded, password)
+			if err != nil {
+				return err
+			}
+			if err := writeExclusiveTokenFile(encryptTo, encrypted); err != nil {
+				return err
+			}
+			fmt.Fprintf(os.Stderr, "encrypted pairing token written to %s\n", encryptTo)
 			return nil
 		},
 	}
 	command.Flags().StringVarP(&path, "identity", "I", "", "persistent private key file")
 	command.Flags().StringSliceVar(&relays, "relay", nil, "add a relay hint")
 	command.Flags().IntVar(&expiresIn, "expires-in", 0, "token lifetime in seconds")
+	command.Flags().StringVar(&encryptTo, "encrypt-to", "", "write a password-encrypted pnc1e_ token file")
+	command.Flags().StringVar(&passwordFile, "password-file", "", "read token password from a permission-restricted file")
+	command.AddCommand(newTokenUnlockCommand())
+	return command
+}
+
+func newTokenUnlockCommand() *cobra.Command {
+	var output string
+	var passwordFile string
+	command := &cobra.Command{
+		Use:   "unlock ENCRYPTED-TOKEN-FILE",
+		Short: "unlock a pnc1e_ token into a local pnc1_ token file",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			if output == "" {
+				return errors.New("--output is required")
+			}
+			encrypted, err := readEncryptedTokenFile(args[0])
+			if err != nil {
+				return err
+			}
+			password, err := readTokenPassword(passwordFile, false)
+			if err != nil {
+				return err
+			}
+			defer clear(password)
+			encoded, err := tokenfile.Decrypt(encrypted, password)
+			if err != nil {
+				return err
+			}
+			if err := writeExclusiveTokenFile(output, encoded); err != nil {
+				return err
+			}
+			fmt.Fprintf(os.Stderr, "unlocked pairing token written to %s\n", output)
+			return nil
+		},
+	}
+	command.Flags().StringVarP(&output, "output", "o", "", "write the unlocked pnc1_ token to this new file")
+	command.Flags().StringVar(&passwordFile, "password-file", "", "read token password from a permission-restricted file")
 	return command
 }
 

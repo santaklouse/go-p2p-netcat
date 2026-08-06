@@ -388,6 +388,27 @@ The token contains the PeerId and logical port, so private mode does not
 require separate positional arguments. Keep the token file private and set its
 permissions to `0600`.
 
+For password-protected storage or transfer, create an encrypted token file:
+
+```bash
+./p2p-nc token 31337 \
+  --identity "$HOME/.config/p2p-netcat/identity.key" \
+  --encrypt-to "$HOME/.config/p2p-netcat/pairing.token.enc"
+```
+
+The command prompts for the password twice without echoing it. After receiving
+the encrypted file, unlock it once on each machine:
+
+```bash
+./p2p-nc token unlock \
+  "$HOME/.config/p2p-netcat/pairing.token.enc" \
+  --output "$HOME/.config/p2p-netcat/pairing.token"
+```
+
+Unlocking prompts for the password once and creates a new `0600` bearer-token
+file. Subsequent listener and client commands use `--pairing-token-file`
+without a password. Neither command overwrites an existing output file.
+
 ## Forwarding, SOCKS, and PTY
 
 Forward a local TCP port to `127.0.0.1:5432` on the remote peer:

@@ -244,6 +244,23 @@ Listener по умолчанию создаёт `~/.config/p2p-netcat/identity.k
 p2p-nc token --identity ~/.config/p2p-netcat/identity.key 31337
 ```
 
+Чтобы защитить token при хранении или передаче, запишите зашифрованный паролем
+файл и один раз разблокируйте его в локальный token-файл с правами `0600`:
+
+```bash
+p2p-nc token 31337 \
+  --identity ~/.config/p2p-netcat/identity.key \
+  --encrypt-to ~/.config/p2p-netcat/pairing.token.enc
+p2p-nc token unlock \
+  ~/.config/p2p-netcat/pairing.token.enc \
+  --output ~/.config/p2p-netcat/pairing.token
+```
+
+Обе команды читают пароль из терминала без отображения. Для non-interactive
+автоматизации `--password-file` принимает обычный файл без прав для group и
+other. Разблокированный файл является bearer credential, и при его дальнейшем
+использовании через `--pairing-token-file` пароль не запрашивается.
+
 Token передаётся через `--pairing-token`, `--pairing-token-file` или
 `P2P_NETCAT_TOKEN`. Приватный режим выводит секретные DHT/signaling
 rendezvous, шифрует native signaling и выполняет mutual admission handshake

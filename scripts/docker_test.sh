@@ -91,6 +91,33 @@ docker run --rm \
 		mkdir -p "${XDG_CACHE_HOME}/p2p-netcat/listeners"
 		touch "${XDG_CACHE_HOME}/p2p-netcat/listeners/35182.lock"
 		test -w "${XDG_CACHE_HOME}/p2p-netcat/listeners/35182.lock"
+		umask 077
+		printf "%s\n" "correct horse battery staple" >/config/p2p-netcat/token.password
+	'
+
+docker run --rm \
+	--volume "${p2pnc_docker_test_volume}:/config" \
+	"${p2pnc_docker_test_image}" \
+	token 35182 \
+	--encrypt-to /config/p2p-netcat/pairing.token.enc \
+	--password-file /config/p2p-netcat/token.password
+
+docker run --rm \
+	--volume "${p2pnc_docker_test_volume}:/config" \
+	"${p2pnc_docker_test_image}" \
+	token unlock /config/p2p-netcat/pairing.token.enc \
+	--output /config/p2p-netcat/pairing.token \
+	--password-file /config/p2p-netcat/token.password
+
+docker run --rm \
+	--volume "${p2pnc_docker_test_volume}:/config" \
+	--entrypoint /bin/sh \
+	"${p2pnc_docker_test_image}" \
+	-c '
+		test "$(stat -c %a /config/p2p-netcat/pairing.token.enc)" = "600"
+		test "$(stat -c %a /config/p2p-netcat/pairing.token)" = "600"
+		grep -q "^pnc1e_" /config/p2p-netcat/pairing.token.enc
+		grep -q "^pnc1_" /config/p2p-netcat/pairing.token
 	'
 
 printf '%s\n' "Docker image tests passed"

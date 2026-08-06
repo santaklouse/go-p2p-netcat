@@ -40,6 +40,10 @@ Pairing-token режим отключает публичный discovery, выв
 DHT/signaling rendezvous, шифрует signaling и аутентифицирует поток до
 передачи прикладных байтов.
 
+Go CLI может поместить bearer-token `pnc1_` в зашифрованный паролем storage
+envelope `pnc1e_`. Разблокировка восстанавливает неизменённый token `pnc1_`,
+поэтому at-rest формат не меняет pairing Go/browser или сетевой wire protocol.
+
 UDP mode запускает гонку стандартного libp2p datagram stream и собственного
 native WebRTC stream. Native WebRTC использует Nostr/WebTorrent signaling и
 ICE/STUN для прохождения NAT без собственного media relay. Также доступны

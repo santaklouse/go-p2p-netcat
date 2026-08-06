@@ -65,6 +65,29 @@ fields. `--pairing-token-file` is available for a permission-restricted file.
 The browser accepts the same token in “Private access and relay”, fills PeerId
 and port, and does not persist the token in `localStorage`.
 
+For password-protected storage or transfer, create a `pnc1e_` file:
+
+```bash
+p2p-nc token 31337 \
+  --identity ~/.config/p2p-netcat/identity.key \
+  --encrypt-to ~/.config/p2p-netcat/pairing.token.enc
+```
+
+The password is read twice from the terminal without echo. Transfer the
+encrypted file, then unlock it once on each machine:
+
+```bash
+p2p-nc token unlock \
+  ~/.config/p2p-netcat/pairing.token.enc \
+  --output ~/.config/p2p-netcat/pairing.token
+```
+
+Unlocking reads the password once and creates a new `0600` file containing the
+unchanged `pnc1_` bearer token. Listener and client commands subsequently use
+that file through `--pairing-token-file` without a password. Existing output
+files are never overwritten. `--password-file` supports non-interactive use,
+but on Unix the password file must grant no permissions to group or other.
+
 ## Connection algorithm
 
 ```mermaid
@@ -120,6 +143,38 @@ keys, NaN, and infinities are rejected.
 The token is a bearer credential. It must not be written to logs, URLs, browser
 storage, shell history, or source control. Prefer an environment variable or a
 file readable only by the user.
+
+## Password-encrypted token file
+
+The optional storage and transfer envelope is separate from the network token:
+
+```text
+pnc1e_ || base64url(canonical-CBOR-map)
+```
+
+| Integer key | Type | Meaning |
+|---:|---|---|
+| `0` | unsigned integer | envelope version, exactly `1` |
+| `1` | UTF-8 text | KDF, exactly `argon2id` |
+| `2` | unsigned integer | Argon2id time cost, exactly `3` |
+| `3` | unsigned integer | Argon2id memory in KiB, exactly `65536` |
+| `4` | unsigned integer | Argon2id parallelism, exactly `4` |
+| `5` | byte string | random 16-byte salt |
+| `6` | UTF-8 text | cipher, exactly `aes-256-gcm` |
+| `7` | byte string | random 12-byte nonce |
+| `8` | byte string | encrypted and authenticated `pnc1_` text |
+
+The Argon2id parameters are the [second recommended profile from RFC
+9106](https://www.rfc-editor.org/rfc/rfc9106.html#section-7.4) for
+memory-constrained environments. AES-256-GCM authenticates the encrypted token
+and the fixed `p2p-netcat/encrypted-pairing-token/v1` domain. Passwords contain
+8..1024 bytes. A wrong password and corrupted ciphertext produce the same
+error. Decryption validates the inner token before writing it.
+
+The unlocked `pnc1_` file remains a bearer credential. Encryption protects the
+file only until it is unlocked; filesystem permissions and normal secret-file
+hygiene protect the local plaintext copy. Browser peers continue to consume
+the unlocked `pnc1_` token, so the pairing wire protocol does not change.
 
 ## Key derivation
 
