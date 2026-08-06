@@ -114,8 +114,9 @@ signaling message 512 КиБ, deadline SOCKS negotiation, поля SOCKS4 user/d
 чтение ограничено по размеру. Unix отклоняет права group/other. Windows
 проверяет DACL и разрешает доступ к секрету только owner, текущему пользователю,
 LocalSystem и встроенным Administrators; отсутствующий или неподдерживаемый DACL
-отклоняется. Новые файлы сохраняют mode `0600` в Unix и наследуют приватный DACL
-родительского каталога в Windows.
+отклоняется. Новые файлы сохраняют mode `0600` в Unix, а в Windows отключают
+наследование и получают защищённый DACL для текущего пользователя, LocalSystem
+и встроенных Administrators.
 
 ## P2: supply chain и доступность
 

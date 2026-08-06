@@ -111,7 +111,8 @@ Existing identity and pairing-token files must be regular files and reads are
 size-limited. Unix rejects group/other permissions. Windows inspects the DACL
 and permits secret access only to the owner, current user, LocalSystem, and
 built-in Administrators; missing and unsupported DACLs fail closed. New files
-remain mode `0600` on Unix and inherit their private parent DACL on Windows.
+remain mode `0600` on Unix and receive a protected DACL for the current user,
+LocalSystem, and built-in Administrators on Windows.
 
 ## P2: supply chain and availability
 

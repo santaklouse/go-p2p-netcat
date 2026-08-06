@@ -86,8 +86,9 @@ p2p-nc token unlock \
 ```
 
 Unlocking reads the password once and creates a new file containing the
-unchanged `pnc1_` bearer token. It uses mode `0600` on Unix and the parent
-directory's inherited ACL on Windows. Listener and client commands subsequently
+unchanged `pnc1_` bearer token. It uses mode `0600` on Unix and a protected DACL
+for the current user, LocalSystem, and built-in Administrators on Windows.
+Listener and client commands subsequently
 use that file through `--pairing-token-file` without a password. Existing output
 files are never overwritten. `--password-file` supports non-interactive use.
 Unix rejects group/other permissions; Windows rejects a DACL that grants secret

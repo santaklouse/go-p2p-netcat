@@ -86,8 +86,9 @@ p2p-nc token unlock \
 ```
 
 При разблокировке пароль читается один раз и создаётся новый файл с неизменённым
-bearer-token `pnc1_`: mode `0600` в Unix или унаследованный ACL родительского
-каталога в Windows. Последующие команды listener и client используют этот файл
+bearer-token `pnc1_`: mode `0600` в Unix или защищённый DACL для текущего
+пользователя, LocalSystem и встроенных Administrators в Windows. Последующие
+команды listener и client используют этот файл
 через `--pairing-token-file` без пароля. Существующие output-файлы никогда не
 перезаписываются. Для non-interactive режима есть `--password-file`. Unix
 отклоняет права group/other; Windows отклоняет DACL, разрешающий чувствительный

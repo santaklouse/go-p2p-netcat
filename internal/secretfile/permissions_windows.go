@@ -11,6 +11,8 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+var procReOpenFile = windows.NewLazySystemDLL("kernel32.dll").NewProc("ReOpenFile")
+
 const secretAccessMask = windows.ACCESS_MASK(
 	windows.GENERIC_ALL |
 		windows.GENERIC_READ |
@@ -108,8 +110,13 @@ func Protect(file *os.File) error {
 	if err != nil {
 		return fmt.Errorf("build private Windows DACL: %w", err)
 	}
+	securityHandle, err := reopenForDACL(file)
+	if err != nil {
+		return err
+	}
+	defer windows.CloseHandle(securityHandle)
 	if err := windows.SetSecurityInfo(
-		windows.Handle(file.Fd()),
+		securityHandle,
 		windows.SE_FILE_OBJECT,
 		windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION,
 		nil,
@@ -119,7 +126,27 @@ func Protect(file *os.File) error {
 	); err != nil {
 		return fmt.Errorf("set private Windows DACL: %w", err)
 	}
+	if err := CheckPermissions(file, nil); err != nil {
+		return fmt.Errorf("verify private Windows DACL: %w", err)
+	}
 	return nil
+}
+
+// reopenForDACL obtains WRITE_DAC for the same kernel file object instead of
+// resolving file.Name again. The regular os.File handle intentionally lacks
+// WRITE_DAC, which SetSecurityInfo requires when replacing a DACL.
+func reopenForDACL(file *os.File) (windows.Handle, error) {
+	handle, _, callErr := procReOpenFile.Call(
+		file.Fd(),
+		uintptr(windows.READ_CONTROL|windows.WRITE_DAC),
+		uintptr(windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE),
+		uintptr(windows.FILE_FLAG_OPEN_REPARSE_POINT),
+	)
+	securityHandle := windows.Handle(handle)
+	if securityHandle == windows.InvalidHandle {
+		return windows.InvalidHandle, fmt.Errorf("reopen Windows file with WRITE_DAC: %w", callErr)
+	}
+	return securityHandle, nil
 }
 
 func allowAccess(sid *windows.SID, permissions windows.ACCESS_MASK) windows.EXPLICIT_ACCESS {

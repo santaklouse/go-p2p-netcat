@@ -458,7 +458,8 @@ the encrypted file, unlock it once on each machine:
 ```
 
 Unlocking prompts for the password once and creates a new bearer-token file
-with mode `0600` on Unix or the parent directory's inherited ACL on Windows.
+with mode `0600` on Unix or a protected DACL for the current user, LocalSystem,
+and built-in Administrators on Windows.
 Subsequent listener and client commands use `--pairing-token-file` without a
 password. Neither command overwrites an existing output file. Existing Windows
 secrets are read only when their DACL grants sensitive access to the owner,

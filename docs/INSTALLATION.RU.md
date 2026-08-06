@@ -299,7 +299,8 @@ p2p-nc token --identity ~/.config/p2p-netcat/identity.key 31337
 
 Чтобы защитить token при хранении или передаче, запишите зашифрованный паролем
 файл и один раз разблокируйте его в локальный token-файл (`0600` в Unix,
-унаследованный ACL родительского каталога в Windows):
+защищённый DACL для текущего пользователя, LocalSystem и встроенных
+Administrators в Windows):
 
 ```bash
 p2p-nc token 31337 \
