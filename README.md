@@ -413,9 +413,11 @@ the encrypted file, unlock it once on each machine:
   --output "$HOME/.config/p2p-netcat/pairing.token"
 ```
 
-Unlocking prompts for the password once and creates a new `0600` bearer-token
-file. Subsequent listener and client commands use `--pairing-token-file`
-without a password. Neither command overwrites an existing output file.
+Unlocking prompts for the password once and creates a new bearer-token file
+with mode `0600` on Unix or the parent directory's inherited ACL on Windows.
+Subsequent listener and client commands use `--pairing-token-file` without a
+password. Neither command overwrites an existing output file. On Windows, keep
+the file under the current user's profile rather than in a shared directory.
 
 ## Forwarding, SOCKS, and PTY
 

@@ -242,7 +242,8 @@ p2p-nc token --identity ~/.config/p2p-netcat/identity.key 31337
 ```
 
 To protect the token during storage or transfer, write a password-encrypted
-file and unlock it once into a local `0600` token file:
+file and unlock it once into a local token file (`0600` on Unix, inherited
+parent-directory ACL on Windows):
 
 ```bash
 p2p-nc token 31337 \
@@ -256,7 +257,8 @@ p2p-nc token unlock \
 Both password prompts read from a terminal without echo. For non-interactive
 automation, `--password-file` accepts a regular file that has no group or other
 permissions. The unlocked file is a bearer credential and no password is
-requested when it is later passed through `--pairing-token-file`.
+requested when it is later passed through `--pairing-token-file`. On Windows,
+store it inside the current user's profile rather than a shared directory.
 
 Pass it via `--pairing-token`, `--pairing-token-file`, or
 `P2P_NETCAT_TOKEN`. Private mode derives secret DHT/signaling rendezvous,

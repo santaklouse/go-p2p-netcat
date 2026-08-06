@@ -37,9 +37,7 @@ func TestEncryptedTokenCommandRoundTrip(t *testing.T) {
 	if !strings.HasPrefix(string(encrypted), tokenfile.Prefix) {
 		t.Fatalf("encrypted token = %q", encrypted)
 	}
-	if permissions := filePermissions(t, encryptedPath); permissions != 0o600 {
-		t.Fatalf("encrypted token permissions = %o, want 600", permissions)
-	}
+	assertPrivateTokenFile(t, encryptedPath)
 
 	unlockedPath := filepath.Join(directory, "pairing.token")
 	command = NewRoot()
@@ -63,9 +61,7 @@ func TestEncryptedTokenCommandRoundTrip(t *testing.T) {
 	if token.Service != 31337 {
 		t.Fatalf("unlocked token service = %d, want 31337", token.Service)
 	}
-	if permissions := filePermissions(t, unlockedPath); permissions != 0o600 {
-		t.Fatalf("unlocked token permissions = %o, want 600", permissions)
-	}
+	assertPrivateTokenFile(t, unlockedPath)
 
 	command = NewRoot()
 	command.SetContext(context.Background())
@@ -117,13 +113,4 @@ func TestEncryptedTokenWrongPasswordDoesNotCreateOutput(t *testing.T) {
 	if _, err := os.Stat(unlockedPath); !os.IsNotExist(err) {
 		t.Fatalf("wrong password created output: %v", err)
 	}
-}
-
-func filePermissions(t *testing.T, path string) os.FileMode {
-	t.Helper()
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return info.Mode().Perm()
 }

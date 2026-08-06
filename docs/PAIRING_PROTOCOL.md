@@ -82,11 +82,14 @@ p2p-nc token unlock \
   --output ~/.config/p2p-netcat/pairing.token
 ```
 
-Unlocking reads the password once and creates a new `0600` file containing the
-unchanged `pnc1_` bearer token. Listener and client commands subsequently use
-that file through `--pairing-token-file` without a password. Existing output
+Unlocking reads the password once and creates a new file containing the
+unchanged `pnc1_` bearer token. It uses mode `0600` on Unix and the parent
+directory's inherited ACL on Windows. Listener and client commands subsequently
+use that file through `--pairing-token-file` without a password. Existing output
 files are never overwritten. `--password-file` supports non-interactive use,
-but on Unix the password file must grant no permissions to group or other.
+but on Unix the password file must grant no permissions to group or other. On
+Windows, keep both files inside the current user's profile rather than a shared
+directory.
 
 ## Connection algorithm
 

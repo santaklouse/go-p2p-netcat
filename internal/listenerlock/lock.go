@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -91,7 +92,7 @@ func lockDirectory() (string, error) {
 
 func defaultLockDirectory(goos, tempDirectory string) (string, error) {
 	if goos == "android" {
-		return filepath.Join(tempDirectory, "p2p-netcat", "listeners"), nil
+		return path.Join(tempDirectory, "p2p-netcat", "listeners"), nil
 	}
 	directory, err := os.UserCacheDir()
 	if err != nil {
