@@ -43,9 +43,11 @@ built-in implementation.
    gathering and publishes complete SDP because tracker announces carry offers
    and answers rather than arbitrary candidate messages.
 5. The first answer that opens `p2p-netcat-v2` starts a 32-byte challenge.
-6. The server signs a domain-separated payload with its persistent libp2p
-   Ed25519 key. The client reconstructs the PeerId and verifies that it is
-   exactly the requested PeerId.
+6. The server signs authentication transcript version 2 with its persistent
+   libp2p Ed25519 key. The transcript binds the requested PeerId and logical
+   port to the signaling session ID, challenge, roles, and SHA-256 hashes of
+   the exact offer and answer SDP. Those SDP values contain the negotiated DTLS
+   certificate fingerprints.
 7. Only after successful verification does the client send `AUTH_READY`.
    Therefore an unverified candidate cannot start a PTY or application stream
    on the listener.
@@ -69,7 +71,7 @@ Every `RTCDataChannel` message is binary:
 | 0x02    | 0x00       | application bytes        |
 | 0x02    | 0x01       | UTF-8 stream control     |
 | 0x02    | 0x02       | authentication challenge |
-| 0x02    | 0x03       | public key + signature   |
+| 0x02    | 0x03       | v2 public key + signature |
 | 0x02    | 0x04       | authentication accepted  |
 +---------+------------+--------------------------+
 ```
@@ -150,10 +152,18 @@ The token supplies the server PeerId and logical port to the second command.
 The removed `--no-trystero` option and PWA native-only switch are unnecessary
 because this is now the only Native WebRTC implementation.
 
-The authentication transcript intentionally retains its historical
-`p2p-netcat/trystero-auth/v1` domain string. Changing it would break wire
-compatibility with existing JavaScript and browser peers. It is a frozen
-protocol value, not a package import or runtime dependency.
+Production endpoints require authentication-response version 2 and the
+`p2p-netcat/native-webrtc-auth/v2` signature domain. Each transcript field is
+prefixed with a four-byte big-endian length. The ordered fields are domain,
+response version, `client` role, `server` role, expected server PeerId, the
+two-byte big-endian logical port, signaling session ID, challenge, offer SDP
+SHA-256, and answer SDP SHA-256. Legacy response version 1 has no production
+downgrade path; its frozen `p2p-netcat/trystero-auth/v1` domain remains only in
+explicit compatibility helpers.
+
+Go and JavaScript tests share a fixed transcript vector. A separate regression
+test negotiates two real Pion PeerConnections and verifies that a proof signed
+for the first connection fails on the second.
 
 ## Automated soak matrix
 

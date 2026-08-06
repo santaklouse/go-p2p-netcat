@@ -15,6 +15,8 @@ export const PROTOCOL_PREFIX = '/p2p-netcat/1.0.0'
 export const DEFAULT_SERVICE = 31337
 export const WEBRTC_APP_ID = 'io.github.santaklouse.p2p-netcat.v1'
 export const WEBRTC_AUTH_VERSION = 1
+export const WEBRTC_AUTH_VERSION_V2 = 2
+export const WEBRTC_AUTH_DOMAIN_V2 = 'p2p-netcat/native-webrtc-auth/v2'
 export const WEBRTC_CLIENT_ID_BYTES = 20
 export const PUBSUB_DISCOVERY_TOPIC = 'io.github.santaklouse.p2p-netcat.peer-discovery.v1'
 export const PUBSUB_DISCOVERY_INTERVAL_MS = 10_000
@@ -215,6 +217,39 @@ export function webRtcAuthPayload (peerId, service, challenge) {
   return payload
 }
 
+export async function webRtcAuthPayloadV2 (peerId, service, challenge, transcript) {
+  const nonce = asBytes(challenge)
+  if (nonce.byteLength !== 32) throw new Error(`WebRTC challenge must contain 32 bytes, received: ${nonce.byteLength}`)
+  if (transcript == null || typeof transcript !== 'object') throw new TypeError('WebRTC authentication transcript is required')
+  const sessionId = new TextEncoder().encode(String(transcript.sessionId ?? ''))
+  if (sessionId.byteLength < 8 || sessionId.byteLength > 128) {
+    throw new Error('WebRTC signaling session ID must contain between 8 and 128 bytes')
+  }
+  const offer = new TextEncoder().encode(String(transcript.offerSdp ?? ''))
+  const answer = new TextEncoder().encode(String(transcript.answerSdp ?? ''))
+  if (offer.byteLength === 0 || offer.byteLength > 256 * 1024) {
+    throw new Error('WebRTC offer SDP is empty or exceeds the signaling limit')
+  }
+  if (answer.byteLength === 0 || answer.byteLength > 256 * 1024) {
+    throw new Error('WebRTC answer SDP is empty or exceeds the signaling limit')
+  }
+  const serviceBytes = new Uint8Array(2)
+  new DataView(serviceBytes.buffer).setUint16(0, validateService(service))
+  const digest = async value => new Uint8Array(await crypto.subtle.digest('SHA-256', value))
+  return encodeLengthDelimitedFields([
+    new TextEncoder().encode(WEBRTC_AUTH_DOMAIN_V2),
+    new Uint8Array([WEBRTC_AUTH_VERSION_V2]),
+    new TextEncoder().encode('client'),
+    new TextEncoder().encode('server'),
+    new TextEncoder().encode(normalizePeerId(peerId)),
+    serviceBytes,
+    sessionId,
+    nonce,
+    await digest(offer),
+    await digest(answer)
+  ])
+}
+
 export function createWebRtcClientChallenge (clientId) {
   const normalizedClientId = String(clientId ?? '').trim()
   if (!/^[0-9A-Za-z]{20}$/.test(normalizedClientId)) {
@@ -243,6 +278,17 @@ export async function signWebRtcAuthResponse (privateKey, service, challenge) {
   )
 }
 
+export async function signWebRtcAuthResponseV2 (privateKey, service, challenge, transcript) {
+  if (privateKey == null || typeof privateKey.sign !== 'function' || privateKey.publicKey == null) {
+    throw new TypeError('A libp2p private key is required')
+  }
+  const peerId = peerIdFromPrivateKey(privateKey).toString()
+  return encodeWebRtcAuthResponseV2(
+    publicKeyToProtobuf(privateKey.publicKey),
+    await privateKey.sign(await webRtcAuthPayloadV2(peerId, service, challenge, transcript))
+  )
+}
+
 export async function verifyWebRtcAuthResponse (value, expectedPeerId, service, challenge) {
   const normalizedPeerId = normalizePeerId(expectedPeerId)
   const response = decodeWebRtcAuthResponse(value)
@@ -254,13 +300,32 @@ export async function verifyWebRtcAuthResponse (value, expectedPeerId, service, 
   )
 }
 
+export async function verifyWebRtcAuthResponseV2 (value, expectedPeerId, service, challenge, transcript) {
+  const normalizedPeerId = normalizePeerId(expectedPeerId)
+  const response = decodeWebRtcAuthResponseV2(value)
+  const publicKey = publicKeyFromProtobuf(response.publicKey)
+  if (peerIdFromPublicKey(publicKey).toString() !== normalizedPeerId) return false
+  return publicKey.verify(
+    await webRtcAuthPayloadV2(normalizedPeerId, service, challenge, transcript),
+    response.signature
+  )
+}
+
 export function encodeWebRtcAuthResponse (publicKey, signature) {
+  return encodeWebRtcAuthResponseVersion(WEBRTC_AUTH_VERSION, publicKey, signature)
+}
+
+export function encodeWebRtcAuthResponseV2 (publicKey, signature) {
+  return encodeWebRtcAuthResponseVersion(WEBRTC_AUTH_VERSION_V2, publicKey, signature)
+}
+
+function encodeWebRtcAuthResponseVersion (version, publicKey, signature) {
   const key = asBytes(publicKey)
   const proof = asBytes(signature)
   if (key.byteLength > 0xffff || proof.byteLength > 0xffff) throw new Error('WebRTC authentication response is too large')
   const response = new Uint8Array(5 + key.byteLength + proof.byteLength)
   const view = new DataView(response.buffer)
-  response[0] = WEBRTC_AUTH_VERSION
+  response[0] = version
   view.setUint16(1, key.byteLength)
   view.setUint16(3, proof.byteLength)
   response.set(key, 5)
@@ -269,8 +334,16 @@ export function encodeWebRtcAuthResponse (publicKey, signature) {
 }
 
 export function decodeWebRtcAuthResponse (value) {
+  return decodeWebRtcAuthResponseVersion(WEBRTC_AUTH_VERSION, value)
+}
+
+export function decodeWebRtcAuthResponseV2 (value) {
+  return decodeWebRtcAuthResponseVersion(WEBRTC_AUTH_VERSION_V2, value)
+}
+
+function decodeWebRtcAuthResponseVersion (version, value) {
   const response = asBytes(value)
-  if (response.byteLength < 5 || response[0] !== WEBRTC_AUTH_VERSION) throw new Error('Unsupported WebRTC authentication response')
+  if (response.byteLength < 5 || response[0] !== version) throw new Error('Unsupported WebRTC authentication response')
   const view = new DataView(response.buffer, response.byteOffset, response.byteLength)
   const publicKeyLength = view.getUint16(1)
   const signatureLength = view.getUint16(3)
@@ -279,6 +352,20 @@ export function decodeWebRtcAuthResponse (value) {
     publicKey: response.slice(5, 5 + publicKeyLength),
     signature: response.slice(5 + publicKeyLength)
   })
+}
+
+function encodeLengthDelimitedFields (fields) {
+  const length = fields.reduce((total, field) => total + 4 + field.byteLength, 0)
+  const result = new Uint8Array(length)
+  const view = new DataView(result.buffer)
+  let offset = 0
+  for (const field of fields) {
+    view.setUint32(offset, field.byteLength)
+    offset += 4
+    result.set(field, offset)
+    offset += field.byteLength
+  }
+  return result
 }
 
 export class WebRtcStream {

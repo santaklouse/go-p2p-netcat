@@ -12,15 +12,17 @@
 
 Новые безопасные значения по умолчанию намеренно отклоняют конфигурации,
 которые раньше запускали привилегированные сервисы без аутентификации. Их
-следует выпустить как `v0.7.0` с явной инструкцией по миграции. Идентификаторы
-wire-протоколов и исторический domain `p2p-netcat/trystero-auth/v1` остаются
-неизменными до завершения согласованной миграции channel binding ниже.
+следует выпустить как `v0.7.0` с явной инструкцией по миграции. Data-channel
+frame protocol остаётся версии 2. Production-аутентификация использует response
+версии 2 и новый domain `p2p-netcat/native-webrtc-auth/v2`. Историческое
+значение `p2p-netcat/trystero-auth/v1` доступно только через явные legacy
+helpers и никогда не принимается production endpoint.
 
 ## P0: исключить доступ без учётных данных
 
 ### S-01 — Pairing обязателен для привилегированных listener
 
-Статус: реализовано; полная проверка ожидается.
+Статус: реализовано; локальная проверка прошла.
 
 Listener `-i`, `-e`, `-S`, TCP forwarding и UDP forwarding отклоняют запуск,
 если не настроен источник pairing token. Намеренно публичный запуск требует
@@ -38,7 +40,7 @@ stream listener сохраняет публичное поведение в ст
 
 ### S-02 — Native WebRTC без аутентификации выключен по умолчанию
 
-Статус: реализовано; полная проверка ожидается.
+Статус: реализовано; локальная проверка прошла.
 
 Go CLI запускает собственный Native WebRTC через Nostr/WebTorrent только с
 валидным pairing token. Явный аварийный флаг
@@ -60,11 +62,10 @@ pairing token используется только libp2p-маршрут Worker
 
 ### S-03 — Миграция channel binding для Native WebRTC
 
-Статус: запланировано; требуется согласованная миграция Go/core/PWA.
+Статус: реализовано; локальные cross-language и real-Pion проверки прошли.
 
-Нужно добавить новую версию authentication response, сохранив замороженный v1
-domain только для явно совместимых защищённых pairing-пиров. Подписываемый
-транскрипт будет содержать length-delimited значения:
+Authentication response версии 2 использует новый domain. Подписываемый
+транскрипт содержит length-delimited значения:
 
 - новый authentication domain и версию response;
 - роли клиента и сервера;
@@ -75,10 +76,10 @@ domain только для явно совместимых защищённых 
 - SHA-256 точного answer SDP.
 
 Хэши SDP привязывают DTLS certificate fingerprints и контекст ICE/session к
-подписи PeerId. Клиент обязан отклонять legacy response на Native WebRTC без
-pairing; downgrade fallback запрещён. Изменения Go, `packages/core`, PWA-тесты,
-опубликованные compatibility vectors и real-Pion soak matrix должны попасть в
-один релиз.
+подписи PeerId. Клиент отклоняет legacy response без downgrade fallback. Go и
+`packages/core` используют общий фиксированный payload vector, а regression-
+тест с двумя реальными Pion-соединениями подтверждает, что proof одной сессии
+нельзя использовать в другой.
 
 Критерии приёмки:
 
@@ -90,7 +91,7 @@ pairing; downgrade fallback запрещён. Изменения Go, `packages/c
 
 ### S-04 — Лимиты ресурсов и parsing
 
-Статус: реализовано; полная проверка ожидается.
+Статус: реализовано; локальная проверка прошла.
 
 Добавлены лимиты: 32 одновременных Native WebRTC handshake глобально, два на
 signaling peer ID, очередь чтения stream 1 МиБ, fail-closed поведение очереди
@@ -107,13 +108,14 @@ signaling message 512 КиБ, deadline SOCKS negotiation, поля SOCKS4 user/d
 
 ### S-05 — Политика секретных файлов
 
-Статус: реализовано в Unix; проверка Windows ACL запланирована.
+Статус: реализовано в Unix и Windows; runtime-проверка Windows остаётся CI gate.
 
-Существующие identity и pairing-token файлы должны быть обычными файлами. Unix
-отклоняет права group/other; чтение ограничено по размеру. Новые файлы остаются
-с mode `0600`. В Windows пока используются приватный каталог пользователя и
-документированные наследуемые ACL; будущий релиз должен проверять effective
-DACL до чтения существующего секрета.
+Существующие identity и pairing-token файлы должны быть обычными файлами, а
+чтение ограничено по размеру. Unix отклоняет права group/other. Windows
+проверяет DACL и разрешает доступ к секрету только owner, текущему пользователю,
+LocalSystem и встроенным Administrators; отсутствующий или неподдерживаемый DACL
+отклоняется. Новые файлы сохраняют mode `0600` в Unix и наследуют приватный DACL
+родительского каталога в Windows.
 
 ## P2: supply chain и доступность
 
@@ -131,13 +133,18 @@ Web override обновлён с `brace-expansion@5.0.8` до `5.0.9`, а
 
 ### S-07 — Подписанные релизы
 
-Статус: запланировано.
+Статус: реализовано; первые опубликованные bundles ожидают релиз `v0.7.0`.
 
-Нужно добавить keyless-подпись Sigstore/cosign для release archives и
-`SHA256SUMS`, публиковать certificate и Rekor bundle, проверять их в installer
-до checksum, закрепить GitHub Actions по commit SHA и сохранить
-документированную ручную команду проверки. Fallback installer на проверку
-только checksum во время поэтапной миграции должен быть явным opt-in.
+Release workflow создаёт keyless Sigstore bundle для каждого архива, installer
+script и `SHA256SUMS`, сохраняя GitHub artifact attestations. Deploy-скрипт
+проверяет bundle `SHA256SUMS` по точной identity workflow репозитория и GitHub
+Actions OIDC issuer до использования checksum. Cosign installer action
+закреплён по commit SHA. Legacy-установка только с checksum требует явного
+opt-in `P2PNC_ALLOW_UNSIGNED=1`.
+Дополнительные UPX-архивы создаются только для Linux `amd64` и `arm64`, рядом с
+исходными архивами. Они сохраняют штатные UPX-метаданные, проходят проверку
+целостности и сравнение после контрольной распаковки, а также покрываются теми
+же checksum, подписями и attestations, что и остальные release artifacts.
 
 ## Финальный набор проверок
 

@@ -22,7 +22,8 @@ curl -fsSL \
 
 The deploy script detects Linux, macOS, or Android and the processor
 architecture, downloads the matching release, verifies it against
-`SHA256SUMS`, and installs `p2p-nc`, `pnc`, and `p2p-netcat`. See
+the keyless Sigstore signature on `SHA256SUMS`, verifies the archive checksum,
+and installs `p2p-nc`, `pnc`, and `p2p-netcat`. Cosign v3 is required. See
 [installation](docs/INSTALLATION.md#verified-deploy-script) for version
 pinning, a custom destination, and uninstalling.
 
@@ -93,9 +94,9 @@ Implemented:
 - private rotating DHT rendezvous identifiers derived from `pnc1_` tokens;
 - a mutual admission handshake before application bytes are exposed;
 - canonical CBOR, HKDF-SHA-256, AES-256-GCM, and signed RouteRecords;
-- native WebRTC v2 with Nostr/WebTorrent signaling, PeerId authentication,
-  pairing-token encryption, flow control, 120-second stream resumption, and
-  libp2p route racing;
+- native WebRTC v2 with Nostr/WebTorrent signaling, channel-bound PeerId
+  authentication over exact SDP hashes, pairing-token encryption, flow
+  control, 120-second stream resumption, and libp2p route racing;
 - raw stdin/stdout, `-e`, TCP and packet-preserving UDP forwarding,
   SOCKS4/4a/5, and PTY sessions, including Windows ConPTY;
 - `-l`, `-k`, `-w`, `-d`, `-p`, `-u`, `-q`, `-S`, `-T`, `-i`, `-z`, `-e`,
@@ -123,9 +124,17 @@ Profiles, scenarios, JSON output, and limitations are documented in the
 
 ## Installation
 
-The current stable version is `v0.6.0`. Release archives contain the
+The current stable version is `v0.7.0`. Release archives contain the
 `p2p-nc` and `pnc` executables, the MIT license, and both README files. Verify the
 downloaded archive against `SHA256SUMS` before installing it.
+Starting with `v0.7.0`, verify the Sigstore bundle for `SHA256SUMS` before
+trusting any checksum.
+
+Linux releases also provide optional `p2p-nc-linux-amd64-upx.tar.gz` and
+`p2p-nc-linux-arm64-upx.tar.gz` archives alongside the original, unpacked
+archives. These variants use standard UPX packing and remain testable and
+unpackable with UPX. The deploy script deliberately installs the original
+archive unless an operator selects an UPX archive manually.
 
 ### Linux
 
@@ -135,7 +144,7 @@ installs the executable into `/usr/local/bin`:
 ```bash
 set -euo pipefail
 
-P2PNC_VERSION="v0.6.0"
+P2PNC_VERSION="v0.7.0"
 case "$(uname -m)" in
   x86_64|amd64) P2PNC_ARCH="amd64" ;;
   aarch64|arm64) P2PNC_ARCH="arm64" ;;
@@ -147,6 +156,11 @@ P2PNC_RELEASE_URL="https://github.com/santaklouse/go-p2p-netcat/releases/downloa
 
 curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/${P2PNC_ARCHIVE}"
 curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/SHA256SUMS"
+curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/SHA256SUMS.sigstore.json"
+cosign verify-blob SHA256SUMS \
+  --bundle SHA256SUMS.sigstore.json \
+  --certificate-identity "https://github.com/santaklouse/go-p2p-netcat/.github/workflows/release-main.yml@refs/tags/${P2PNC_VERSION}" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
 grep "  ${P2PNC_ARCHIVE}$" SHA256SUMS | sha256sum --check -
 tar -xzf "$P2PNC_ARCHIVE"
 sudo install -m 0755 "p2p-nc-linux-${P2PNC_ARCH}/p2p-nc" /usr/local/bin/p2p-nc
@@ -161,7 +175,7 @@ processor architecture automatically:
 ```bash
 set -euo pipefail
 
-P2PNC_VERSION="v0.6.0"
+P2PNC_VERSION="v0.7.0"
 case "$(uname -m)" in
   x86_64|amd64) P2PNC_ARCH="amd64" ;;
   arm64|aarch64) P2PNC_ARCH="arm64" ;;
@@ -173,6 +187,11 @@ P2PNC_RELEASE_URL="https://github.com/santaklouse/go-p2p-netcat/releases/downloa
 
 curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/${P2PNC_ARCHIVE}"
 curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/SHA256SUMS"
+curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/SHA256SUMS.sigstore.json"
+cosign verify-blob SHA256SUMS \
+  --bundle SHA256SUMS.sigstore.json \
+  --certificate-identity "https://github.com/santaklouse/go-p2p-netcat/.github/workflows/release-main.yml@refs/tags/${P2PNC_VERSION}" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
 grep "  ${P2PNC_ARCHIVE}$" SHA256SUMS | shasum -a 256 --check
 tar -xzf "$P2PNC_ARCHIVE"
 sudo mkdir -p /usr/local/bin
@@ -194,7 +213,7 @@ Open PowerShell and run:
 
 ```powershell
 $ErrorActionPreference = 'Stop'
-$Version = 'v0.6.0'
+$Version = 'v0.7.0'
 $Architecture = switch ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()) {
     'X64' { 'amd64' }
     'Arm64' { 'arm64' }
@@ -205,6 +224,12 @@ $ReleaseUrl = "https://github.com/santaklouse/go-p2p-netcat/releases/download/$V
 
 Invoke-WebRequest "$ReleaseUrl/$Archive" -OutFile $Archive
 Invoke-WebRequest "$ReleaseUrl/SHA256SUMS" -OutFile 'SHA256SUMS'
+Invoke-WebRequest "$ReleaseUrl/SHA256SUMS.sigstore.json" -OutFile 'SHA256SUMS.sigstore.json'
+cosign verify-blob SHA256SUMS `
+    --bundle SHA256SUMS.sigstore.json `
+    --certificate-identity "https://github.com/santaklouse/go-p2p-netcat/.github/workflows/release-main.yml@refs/tags/$Version" `
+    --certificate-oidc-issuer https://token.actions.githubusercontent.com
+if ($LASTEXITCODE -ne 0) { throw 'Sigstore verification failed for SHA256SUMS' }
 $ChecksumLine = Get-Content 'SHA256SUMS' | Where-Object { $_ -match ([regex]::Escape($Archive) + '$') }
 if (-not $ChecksumLine) { throw "Checksum for $Archive was not found" }
 $ExpectedHash = ($ChecksumLine -split '\s+')[0].ToLowerInvariant()
@@ -237,7 +262,7 @@ run:
 ```bash
 set -euo pipefail
 
-P2PNC_VERSION="v0.6.0"
+P2PNC_VERSION="v0.7.0"
 P2PNC_ANDROID_ABI="$(adb shell getprop ro.product.cpu.abi | tr -d '\r')"
 case "$P2PNC_ANDROID_ABI" in
   arm64-v8a) P2PNC_ANDROID_ARCH="arm64" ;;
@@ -250,6 +275,11 @@ P2PNC_RELEASE_URL="https://github.com/santaklouse/go-p2p-netcat/releases/downloa
 
 curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/${P2PNC_ARCHIVE}"
 curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/SHA256SUMS"
+curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/SHA256SUMS.sigstore.json"
+cosign verify-blob SHA256SUMS \
+  --bundle SHA256SUMS.sigstore.json \
+  --certificate-identity "https://github.com/santaklouse/go-p2p-netcat/.github/workflows/release-main.yml@refs/tags/${P2PNC_VERSION}" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
 if command -v sha256sum >/dev/null 2>&1; then
   grep "  ${P2PNC_ARCHIVE}$" SHA256SUMS | sha256sum --check -
 else
@@ -285,9 +315,9 @@ With a recent Go installation and automatic toolchain downloads enabled:
 
 ```bash
 GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
-  github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@v0.6.0
+  github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@v0.7.0
 GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
-  github.com/santaklouse/go-p2p-netcat/cmd/pnc@v0.6.0
+  github.com/santaklouse/go-p2p-netcat/cmd/pnc@v0.7.0
 "$(go env GOPATH)/bin/p2p-nc" --version
 ```
 
@@ -430,8 +460,9 @@ the encrypted file, unlock it once on each machine:
 Unlocking prompts for the password once and creates a new bearer-token file
 with mode `0600` on Unix or the parent directory's inherited ACL on Windows.
 Subsequent listener and client commands use `--pairing-token-file` without a
-password. Neither command overwrites an existing output file. On Windows, keep
-the file under the current user's profile rather than in a shared directory.
+password. Neither command overwrites an existing output file. Existing Windows
+secrets are read only when their DACL grants sensitive access to the owner,
+current user, LocalSystem, or built-in Administrators.
 
 ## Forwarding, SOCKS, and PTY
 
@@ -544,14 +575,18 @@ The separate `.github/workflows/webrtc-soak.yml` workflow runs the longer
 `soak` profile every Monday on Ubuntu and macOS and supports manual profile
 selection.
 
-- Linux: `amd64`, `arm64`;
+- Linux: `amd64`, `arm64`, with original and optional `-upx` archives;
 - macOS: `amd64`, `arm64`;
 - Windows: `amd64`, `arm64`;
 - Android 7.0 (API 24) and newer: `arm64`, `armv7`.
 
 Linux and macOS builds are distributed as `.tar.gz` archives. Windows builds
 are distributed as `.zip` archives, and Android builds as `.tar.gz` archives.
-Every release also contains `SHA256SUMS`. Semantic tags such as `v0.6.0`
+Only the Linux `amd64` and `arm64` release binaries receive separate,
+explicitly named UPX variants; macOS binaries are never UPX-packed.
+Every release also contains `SHA256SUMS` and keyless Sigstore bundles for every
+artifact. The deploy script authenticates the signed checksum manifest before
+checking an archive. Semantic tags such as `v0.7.0`
 produce stable releases. Builds from `main` are marked as prereleases and use a
 deterministic tag that starts with `main-` and ends with the first 12
 characters of the commit SHA. Rerunning a workflow updates the same release

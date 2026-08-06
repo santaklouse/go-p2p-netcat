@@ -171,7 +171,7 @@ test("runs the network stack in a dedicated Web Worker", async () => {
   assert.match(nativeWebRtc, /connectNativeWebRtc/);
   assert.match(nativeWebRtc, /createNostrSignalingSession/);
   assert.match(nativeWebRtc, /createTorrentSignalingSession/);
-  assert.match(nativeWebRtc, /verifyWebRtcAuthResponse/);
+  assert.match(nativeWebRtc, /verifyWebRtcAuthResponseV2/);
   assert.match(nativeWebRtc, /defaultRtcConfiguration/);
   assert.doesNotMatch(client, /trystero/i);
   assert.doesNotMatch(goModule, /trystero/i);
@@ -182,6 +182,8 @@ test("runs the network stack in a dedicated Web Worker", async () => {
   assert.match(signaling, /trickleIce: false/);
   assert.match(endpoint, /connectNativeWebRtc/);
   assert.match(endpoint, /startNativeWebRtcListener/);
+  assert.match(endpoint, /offerSdp: attempt\.offerSdp/);
+  assert.match(endpoint, /answerSdp: attempt\.answerSdp/);
   assert.match(core, /stun:stun\.l\.google\.com:19302/);
   assert.match(core, /stun:stun\.internetcalls\.com:3478/);
   assert.match(client, /transfer/);

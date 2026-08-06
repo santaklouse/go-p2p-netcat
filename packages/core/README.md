@@ -54,11 +54,12 @@ in platform-specific packages.
 | `DEFAULT_STUN_URLS` | Immutable shared STUN URL list |
 | `defaultRtcConfiguration()` | Returns a fresh WebRTC configuration using the shared STUN pool |
 | `webRtcRoomId(peerId, service)` | Builds the deterministic WebRTC room |
-| `webRtcAuthPayload(...)` | Builds a domain-separated signed challenge |
-| `encodeWebRtcAuthResponse(...)` | Encodes the public key and signature |
-| `decodeWebRtcAuthResponse(...)` | Validates and decodes the response |
-| `signWebRtcAuthResponse(...)` | Signs a challenge with a libp2p private key |
-| `verifyWebRtcAuthResponse(...)` | Verifies the signature and exact requested PeerId |
+| `webRtcAuthPayload(...)` | Builds the legacy v1 challenge for compatibility tests |
+| `encodeWebRtcAuthResponse(...)` / `decodeWebRtcAuthResponse(...)` | Encodes or decodes legacy response v1 |
+| `signWebRtcAuthResponse(...)` / `verifyWebRtcAuthResponse(...)` | Legacy compatibility helpers; production endpoints do not use them |
+| `webRtcAuthPayloadV2(...)` | Binds PeerId, service, signaling session, challenge, roles, and exact SDP hashes |
+| `signWebRtcAuthResponseV2(...)` | Signs the channel-bound authentication transcript |
+| `verifyWebRtcAuthResponseV2(...)` | Verifies response v2 and rejects legacy downgrade |
 | `WebRtcStream` | Adapts an action channel to backpressure, recovery, and EOF semantics |
 | `createWebRtcActionHub(room, options)` | Maps the data/control actions and peer lifecycle to shared streams |
 | `NativeWebRtcPeer` | Owns one ordered reliable data channel and its binary frame protocol |
@@ -123,7 +124,7 @@ import {
   createSignalingPeerId,
   createTorrentSignalingSession,
   defaultRtcConfiguration,
-  verifyWebRtcAuthResponse,
+  verifyWebRtcAuthResponseV2,
   webRtcRoomId
 } from 'p2p-netcat-core'
 
@@ -139,8 +140,14 @@ export async function connectToP2pNetcat (targetPeerId, logicalPort = 31337) {
     signalingSessions,
     RTCPeerConnection,
     rtcConfig: defaultRtcConfiguration(),
-    verifyAuthResponse: (value, challenge) =>
-      verifyWebRtcAuthResponse(value, targetPeerId, logicalPort, challenge)
+    verifyAuthResponse: (value, challenge, transcript) =>
+      verifyWebRtcAuthResponseV2(
+        value,
+        targetPeerId,
+        logicalPort,
+        challenge,
+        transcript
+      )
   })
 
   return {
@@ -150,8 +157,9 @@ export async function connectToP2pNetcat (targetPeerId, logicalPort = 31337) {
 }
 ```
 
-The function verifies the signed challenge against the exact PeerId and logical
-port requested by the caller.
+The function verifies authentication-response version 2 against the exact
+PeerId, logical port, signaling session, and offer/answer SDP negotiated by the
+caller. Production endpoints do not fall back to the legacy response format.
 
 Install the standalone browser-safe package when it is the only functionality
 needed:

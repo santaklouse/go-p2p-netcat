@@ -89,9 +89,10 @@ p2p-nc token unlock \
 bearer-token `pnc1_`: mode `0600` в Unix или унаследованный ACL родительского
 каталога в Windows. Последующие команды listener и client используют этот файл
 через `--pairing-token-file` без пароля. Существующие output-файлы никогда не
-перезаписываются. Для non-interactive режима есть `--password-file`, но в Unix
-password-файл не должен предоставлять никаких прав group или other. В Windows
-храните оба файла в профиле текущего пользователя, а не в общем каталоге.
+перезаписываются. Для non-interactive режима есть `--password-file`. Unix
+отклоняет права group/other; Windows отклоняет DACL, разрешающий чувствительный
+доступ кому-либо, кроме owner, текущего пользователя, LocalSystem или встроенных
+Administrators.
 
 ## Алгоритм соединения
 
@@ -118,6 +119,9 @@ Native WebRTC по-прежнему параллельно использует 
 Тема является стабильным идентификатором из секрета на время жизни token, а
 каждый SDP или ICE payload отдельно защищён AES-256-GCM. Стабильная тема не
 разрывает длительную signaling-сессию на границе временного окна.
+Authentication-response версии 2 дополнительно подписывает signaling session
+ID и точные хэши offer/answer SDP, связывая PeerId proof с согласованными DTLS
+fingerprints даже без доверия к конфиденциальности signaling.
 
 Первый транспорт, подтвердивший точный PeerId сервера, выполняет pairing
 admission handshake. Прикладные байты выдаются только после того, как обе

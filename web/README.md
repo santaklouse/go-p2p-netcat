@@ -100,7 +100,8 @@ topic and resolves the PeerId through
 `https://delegated-ipfs.dev/routing/v1`, and then uses DHT as a fallback. The
 first authenticated channel wins. A successful libp2p route is cached in
 IndexedDB for 24 hours. The WebRTC server proves the entered PeerId with a
-signed Ed25519 challenge. The timeout entered in the UI is one deadline for
+channel-bound Ed25519 transcript covering the challenge, signaling session,
+logical port, and exact offer/answer SDP. The timeout entered in the UI is one deadline for
 the Worker/libp2p and native WebRTC branches, so a slow DHT
 query cannot keep the form blocked after the requested interval.
 `public/network-config.json` can add compatible

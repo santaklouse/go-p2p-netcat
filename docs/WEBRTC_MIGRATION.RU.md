@@ -43,8 +43,10 @@ GitHub Pages. В Node.js `RTCPeerConnection` предоставляет `@roamhq
    ICE gathering и публикует полный SDP, потому что tracker announce переносит
    offers и answers, но не произвольные candidate messages.
 5. Первый ответ, открывший `p2p-netcat-v2`, запускает 32-байтовый challenge.
-6. Сервер подписывает domain-separated payload постоянным libp2p Ed25519-ключом.
-   Клиент восстанавливает PeerId и проверяет точное совпадение с запрошенным.
+6. Сервер подписывает authentication transcript версии 2 постоянным libp2p
+   Ed25519-ключом. Transcript привязывает запрошенный PeerId и логический порт
+   к signaling session ID, challenge, ролям и SHA-256 точных offer и answer
+   SDP. Эти SDP содержат согласованные DTLS certificate fingerprints.
 7. Только после успешной проверки клиент отправляет `AUTH_READY`. Поэтому
    непроверенный кандидат не может запустить PTY или прикладной поток listener.
 8. Побеждает первый аутентифицированный адаптер. Проигравшие Nostr/tracker
@@ -67,7 +69,7 @@ Offer glare здесь отсутствует по конструкции: кл�
 | 0x02    | 0x00       | байты приложения         |
 | 0x02    | 0x01       | UTF-8 stream control     |
 | 0x02    | 0x02       | authentication challenge |
-| 0x02    | 0x03       | public key + signature   |
+| 0x02    | 0x03       | v2 public key + signature |
 | 0x02    | 0x04       | authentication accepted  |
 +---------+------------+--------------------------+
 ```
@@ -147,10 +149,18 @@ Token передаёт второй команде PeerId сервера и ло
 `--no-trystero` и переключатель PWA native-only больше не нужны: теперь это
 единственная реализация Native WebRTC.
 
-Authentication transcript намеренно сохраняет исторический domain
-`p2p-netcat/trystero-auth/v1`. Его изменение нарушило бы wire-совместимость
-с существующими JavaScript- и browser-пирами. Это замороженное значение
-протокола, а не импорт пакета или runtime dependency.
+Production endpoints требуют authentication-response версии 2 и signature
+domain `p2p-netcat/native-webrtc-auth/v2`. Перед каждым полем transcript стоит
+четырёхбайтовая big-endian длина. Порядок полей: domain, версия response, роли
+`client` и `server`, ожидаемый PeerId сервера, двухбайтовый big-endian
+логический порт, signaling session ID, challenge, SHA-256 offer SDP и SHA-256
+answer SDP. Для legacy response версии 1 нет production downgrade; его
+замороженный domain `p2p-netcat/trystero-auth/v1` остаётся только в явных
+compatibility helpers.
+
+Go- и JavaScript-тесты используют общий фиксированный transcript vector.
+Отдельный regression-тест согласует два реальных Pion PeerConnection и
+проверяет, что proof первого соединения не проходит во втором.
 
 ## Автоматическая soak-матрица
 

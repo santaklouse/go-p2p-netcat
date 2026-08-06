@@ -9,7 +9,7 @@ import {
   createSignalingPeerId,
   createTorrentSignalingSession,
   defaultRtcConfiguration,
-  verifyWebRtcAuthResponse,
+  verifyWebRtcAuthResponseV2,
   webRtcRoomId,
 } from "p2p-netcat-core";
 import type { NativeSignalingSession } from "p2p-netcat-core";
@@ -85,8 +85,14 @@ export class BrowserNativeWebRtcClient {
       rtcConfig: defaultRtcConfiguration(),
       timeoutMs,
       reconnectGraceMs: WEBRTC_RECONNECT_GRACE_MS,
-      verifyAuthResponse: async (value, challenge) => {
-        const valid = await verifyWebRtcAuthResponse(value, targetPeerId, logicalPort, challenge);
+      verifyAuthResponse: async (value, challenge, transcript) => {
+        const valid = await verifyWebRtcAuthResponseV2(
+          value,
+          targetPeerId,
+          logicalPort,
+          challenge,
+          transcript,
+        );
         if (!valid) throw new Error("Некорректная подпись WebRTC PeerId");
         this.events.onLog(`WebRTC: PeerId ${targetPeerId} подтверждён`, "success");
         return true;

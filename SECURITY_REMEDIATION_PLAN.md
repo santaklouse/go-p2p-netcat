@@ -12,15 +12,17 @@ Baseline: `v0.6.0` plus the reports in `SECURITY_AUDIT.md` and
 
 The secure-default changes intentionally reject configurations that previously
 started unauthenticated privileged services. They should ship as `v0.7.0`, with
-an explicit migration note. Wire protocol identifiers and the historical
-`p2p-netcat/trystero-auth/v1` domain remain unchanged until the coordinated
-channel-binding migration described below is complete.
+an explicit migration note. The data-channel frame protocol remains version 2.
+Production authentication uses response version 2 and the new
+`p2p-netcat/native-webrtc-auth/v2` domain. The historical
+`p2p-netcat/trystero-auth/v1` value remains available only through explicit
+legacy helpers and is never accepted by the production endpoint.
 
 ## P0: prevent credential-less exposure
 
 ### S-01 — Privileged listeners require pairing
 
-Status: implemented; full verification pending.
+Status: implemented; local verification passed.
 
 Listener `-i`, `-e`, `-S`, TCP forwarding, and UDP forwarding reject startup
 unless a pairing token source is configured. Deliberately public operation
@@ -37,7 +39,7 @@ Acceptance criteria:
 
 ### S-02 — Disable unauthenticated Native WebRTC by default
 
-Status: implemented; full verification pending.
+Status: implemented; local verification passed.
 
 The Go CLI starts custom Nostr/WebTorrent Native WebRTC only with a valid
 pairing token. The explicit `--allow-unauthenticated-native-webrtc` escape hatch
@@ -58,11 +60,10 @@ Acceptance criteria:
 
 ### S-03 — Native WebRTC channel-binding migration
 
-Status: planned; blocked on a coordinated Go/core/PWA protocol migration.
+Status: implemented; local cross-language and real-Pion verification passed.
 
-Introduce a new authentication-response version while retaining the frozen v1
-domain only for explicitly compatible paired peers. The signed transcript will
-contain length-delimited values for:
+Authentication response version 2 uses a new domain. The signed transcript
+contains length-delimited values for:
 
 - the new authentication domain and response version;
 - client and server roles;
@@ -73,10 +74,10 @@ contain length-delimited values for:
 - SHA-256 of the exact answer SDP.
 
 The SDP hashes bind both DTLS certificate fingerprints and ICE/session context
-to the PeerId signature. Clients must reject a legacy response on an
-unauthenticated Native WebRTC route; no downgrade fallback is allowed. Go,
-`packages/core`, PWA tests, published compatibility vectors, and the real-Pion
-soak matrix must land together.
+to the PeerId signature. Clients reject legacy responses without downgrade
+fallback. Go and `packages/core` share a fixed payload vector, and a regression
+test with two real Pion connections proves that a proof from one connection
+cannot be used on another.
 
 Acceptance criteria:
 
@@ -88,7 +89,7 @@ Acceptance criteria:
 
 ### S-04 — Resource and parsing limits
 
-Status: implemented; full verification pending.
+Status: implemented; local verification passed.
 
 Implemented limits include 32 concurrent Native WebRTC handshakes globally,
 two per signaling peer ID, a 1 MiB stream receive queue, fail-closed Pion frame
@@ -104,13 +105,13 @@ Acceptance criteria:
 
 ### S-05 — Sensitive-file policy
 
-Status: implemented on Unix; Windows ACL enforcement remains planned.
+Status: implemented on Unix and Windows; Windows runtime execution remains a CI gate.
 
-Existing identity and pairing-token files must be regular files. Unix rejects
-group/other permissions; reads are size-limited. New files remain mode `0600`.
-Windows currently relies on a user-private directory and documented inherited
-ACLs; a future release should inspect the effective DACL before reading an
-existing secret.
+Existing identity and pairing-token files must be regular files and reads are
+size-limited. Unix rejects group/other permissions. Windows inspects the DACL
+and permits secret access only to the owner, current user, LocalSystem, and
+built-in Administrators; missing and unsupported DACLs fail closed. New files
+remain mode `0600` on Unix and inherit their private parent DACL on Windows.
 
 ## P2: supply chain and availability
 
@@ -127,13 +128,18 @@ the availability-sensitive mitigation, and recheck each dependency update.
 
 ### S-07 — Signed releases
 
-Status: planned.
+Status: implemented; first published bundles await the `v0.7.0` release.
 
-Add keyless Sigstore/cosign signing for release archives and `SHA256SUMS`, emit
-the certificate and Rekor bundle, verify them in the installer before checksum
-validation, pin GitHub Actions by commit SHA, and retain a documented manual
-verification command. Installer fallback to checksum-only verification must be
-an explicit opt-in during a staged migration.
+The release workflow creates a keyless Sigstore bundle for every archive,
+installer script, and `SHA256SUMS`, while retaining GitHub artifact
+attestations. The deploy script verifies the `SHA256SUMS` bundle against the
+exact repository workflow identity and GitHub Actions OIDC issuer before using
+the checksums. The cosign installer action is pinned to a commit SHA. Legacy
+checksum-only installation requires explicit `P2PNC_ALLOW_UNSIGNED=1` opt-in.
+Optional UPX-packed archives are produced only for Linux `amd64` and `arm64`,
+alongside the original archives. They retain standard UPX metadata, pass UPX
+integrity and round-trip comparison checks, and are covered by the same
+checksums, signatures, and attestations as every other release artifact.
 
 ## Verification gate
 

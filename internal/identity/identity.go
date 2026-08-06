@@ -7,9 +7,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/santaklouse/go-p2p-netcat/internal/secretfile"
 )
 
 const maxIdentityFileSize = 64 * 1024
@@ -46,9 +46,9 @@ func LoadOrCreate(path string) (crypto.PrivKey, error) {
 			_ = file.Close()
 			return nil, fmt.Errorf("private key %s must be a regular file", absolute)
 		}
-		if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
+		if permissionErr := secretfile.CheckPermissions(file, info); permissionErr != nil {
 			_ = file.Close()
-			return nil, fmt.Errorf("private key %s permissions must not grant group or other access", absolute)
+			return nil, fmt.Errorf("private key %s is not private: %w", absolute, permissionErr)
 		}
 		data, readErr := io.ReadAll(io.LimitReader(file, maxIdentityFileSize+1))
 		closeErr := file.Close()
@@ -90,12 +90,16 @@ func LoadOrCreate(path string) (crypto.PrivKey, error) {
 	}
 	if _, err := file.Write(encoded); err != nil {
 		_ = file.Close()
+		_ = os.Remove(absolute)
 		return nil, fmt.Errorf("write identity %s: %w", absolute, err)
 	}
-	if err := file.Close(); err != nil {
-		return nil, err
+	if err := secretfile.Protect(file); err != nil {
+		_ = file.Close()
+		_ = os.Remove(absolute)
+		return nil, fmt.Errorf("protect identity %s: %w", absolute, err)
 	}
-	if err := os.Chmod(absolute, 0o600); err != nil {
+	if err := file.Close(); err != nil {
+		_ = os.Remove(absolute)
 		return nil, err
 	}
 	return key, nil

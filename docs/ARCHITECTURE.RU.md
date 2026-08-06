@@ -21,8 +21,8 @@ TypeScript core и статический PWA.
 - pairing: deterministic CBOR token `pnc1_`, HKDF-SHA-256, AES-256-GCM,
   вращающийся rendezvous и фиксированный mutual admission handshake;
 - native WebRTC: protocol v2, ordered data channel `p2p-netcat-v2`,
-  исторический домен подписи `p2p-netcat/trystero-auth/v1` и одинаковые
-  control frames.
+  authentication-response v2 с transcript domain
+  `p2p-netcat/native-webrtc-auth/v2` и одинаковые control frames.
 
 ## Выбор маршрута Go CLI
 
@@ -52,9 +52,10 @@ Relay v2 дают UDP-over-stream fallback.
 
 ## Native WebRTC
 
-Listener подписывает 32-байтный challenge постоянной libp2p identity. Клиент
-восстанавливает точный ожидаемый PeerId из public key и проверяет подпись,
-привязанную к logical service. Data/control frames реализуют EOF, abort,
+Listener подписывает versioned transcript постоянной libp2p identity.
+Transcript привязывает точный ожидаемый PeerId и logical service к challenge,
+signaling session, ролям и хэшам обоих SDP. Хэши SDP связывают proof с
+согласованными DTLS fingerprints. Data/control frames реализуют EOF, abort,
 keepalive, acknowledgement и flow window 256 КиБ.
 
 Неожиданный разрыв запускает 120-секундное окно reconnect. Новые offer

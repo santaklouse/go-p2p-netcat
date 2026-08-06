@@ -89,10 +89,9 @@ Unlocking reads the password once and creates a new file containing the
 unchanged `pnc1_` bearer token. It uses mode `0600` on Unix and the parent
 directory's inherited ACL on Windows. Listener and client commands subsequently
 use that file through `--pairing-token-file` without a password. Existing output
-files are never overwritten. `--password-file` supports non-interactive use,
-but on Unix the password file must grant no permissions to group or other. On
-Windows, keep both files inside the current user's profile rather than a shared
-directory.
+files are never overwritten. `--password-file` supports non-interactive use.
+Unix rejects group/other permissions; Windows rejects a DACL that grants secret
+access beyond the owner, current user, LocalSystem, or built-in Administrators.
 
 ## Connection algorithm
 
@@ -120,6 +119,9 @@ Native WebRTC still races Nostr and WebTorrent signaling. The topic is a stable
 secret-derived identifier for the life of the token, while every SDP or ICE
 payload is independently protected by AES-256-GCM. A stable topic avoids
 breaking long-running WebSocket signaling sessions at a time-window boundary.
+Authentication-response version 2 additionally signs the signaling session ID
+and exact offer/answer SDP hashes, binding the PeerId proof to the negotiated
+DTLS fingerprints even if signaling confidentiality is not relied upon.
 
 The first transport to authenticate the exact server PeerId then performs the
 pairing admission handshake. Application bytes are delivered only after both

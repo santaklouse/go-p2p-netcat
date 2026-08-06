@@ -43,6 +43,7 @@ type EndpointOptions struct {
 type nativePeer struct {
 	connection *webrtc.PeerConnection
 	channel    *webrtc.DataChannel
+	channelMu  sync.Mutex
 	frames     chan Frame
 	open       chan struct{}
 	closed     chan struct{}
@@ -105,11 +106,20 @@ func newNativePeer(initiator bool, iceServers []string) (*nativePeer, error) {
 }
 
 func (p *nativePeer) attach(channel *webrtc.DataChannel) {
+	p.channelMu.Lock()
+	select {
+	case <-p.closed:
+		p.channelMu.Unlock()
+		return
+	default:
+	}
 	if p.channel != nil && p.channel != channel {
+		p.channelMu.Unlock()
 		_ = channel.Close()
 		return
 	}
 	p.channel = channel
+	p.channelMu.Unlock()
 	channel.OnOpen(func() { p.openOnce.Do(func() { close(p.open) }) })
 	channel.OnMessage(func(message webrtc.DataChannelMessage) {
 		frame, err := DecodeFrame(message.Data)
@@ -184,19 +194,22 @@ func (p *nativePeer) Send(frame Frame) error {
 	}
 	p.sendMu.Lock()
 	defer p.sendMu.Unlock()
-	if p.channel == nil {
+	p.channelMu.Lock()
+	channel := p.channel
+	p.channelMu.Unlock()
+	if channel == nil {
 		return io.ErrClosedPipe
 	}
-	return p.channel.Send(EncodeFrame(frame.Type, frame.Payload))
+	return channel.Send(EncodeFrame(frame.Type, frame.Payload))
 }
 
 func (p *nativePeer) Close() error {
 	var result error
 	p.closeOnce.Do(func() {
 		close(p.closed)
-		if p.channel != nil {
-			_ = p.channel.Close()
-		}
+		p.channelMu.Lock()
+		p.channel = nil
+		p.channelMu.Unlock()
 		result = p.connection.Close()
 	})
 	return result
@@ -486,7 +499,10 @@ func dialAuthenticatedPeer(
 		_ = signaling.Publish(context.Background(), Signal{Type: "bye", SessionID: sessionID})
 		return p2p.Close()
 	}
+	var offerSDP string
+	var transcript AuthTranscript
 	if err := p2p.startOffer(ctx, func(signal Signal) error {
+		offerSDP = signal.SDP
 		return signaling.Publish(ctx, signal)
 	}, sessionID); err != nil {
 		_ = closePeer()
@@ -503,9 +519,15 @@ func dialAuthenticatedPeer(
 				continue
 			}
 			if signal.Type == "answer" {
+				answerSDP := signal.SDP
 				if err := p2p.acceptAnswer(signal); err != nil {
 					_ = closePeer()
 					return nil, err
+				}
+				transcript = AuthTranscript{
+					SessionID: sessionID,
+					OfferSDP:  offerSDP,
+					AnswerSDP: answerSDP,
 				}
 				goto connected
 			}
@@ -541,7 +563,7 @@ connected:
 				_ = closePeer()
 				return nil, fmt.Errorf("expected a WebRTC auth response, received frame %d", frame.Type)
 			}
-			ok, err := VerifyAuthResponse(frame.Payload, expected, service, challenge)
+			ok, err := VerifyAuthResponseV2(frame.Payload, expected, service, challenge, transcript)
 			if err != nil || !ok {
 				_ = closePeer()
 				if err == nil {
@@ -853,19 +875,26 @@ func answerNativeOffer(
 		})
 		return p2p.Close()
 	}
+	var answerSDP string
 	if err := p2p.acceptOffer(attemptCtx, offer, func(signal Signal) error {
+		answerSDP = signal.SDP
 		return signaling.Publish(attemptCtx, signal)
 	}); err != nil {
 		_ = closePeer()
 		return nil, err
 	}
 	var challengeAnswered bool
+	transcript := AuthTranscript{
+		SessionID: offer.SessionID,
+		OfferSDP:  offer.SDP,
+		AnswerSDP: answerSDP,
+	}
 	for {
 		select {
 		case frame := <-p2p.frames:
 			switch frame.Type {
 			case FrameAuthChallenge:
-				response, signErr := SignAuthResponse(privateKey, service, frame.Payload)
+				response, signErr := SignAuthResponseV2(privateKey, service, frame.Payload, transcript)
 				if signErr != nil || p2p.Send(Frame{Type: FrameAuthResponse, Payload: response}) != nil {
 					_ = closePeer()
 					return nil, errors.New("send native WebRTC auth response")

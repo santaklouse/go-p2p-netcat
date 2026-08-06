@@ -14,6 +14,8 @@
 #   P2PNC_REPOSITORY=OWNER/REPO
 #                              Override the GitHub repository.
 #   P2PNC_RELEASE_BASE=URL     Override the release directory URL.
+#   P2PNC_COSIGN=COMMAND       Override the cosign executable.
+#   P2PNC_ALLOW_UNSIGNED=1     Explicitly allow checksum-only legacy releases.
 #   P2PNC_OS=linux|darwin|android
 #   P2PNC_ARCH=amd64|arm64|armv7
 #
@@ -28,6 +30,7 @@ fi
 
 p2pnc_repository="${P2PNC_REPOSITORY:-santaklouse/go-p2p-netcat}"
 p2pnc_version="${P2PNC_VERSION:-latest}"
+p2pnc_cosign="${P2PNC_COSIGN:-cosign}"
 p2pnc_temp_dir=""
 p2pnc_sudo=()
 
@@ -186,6 +189,30 @@ p2pnc_verify() {
 	p2pnc_log "verified ${archive_name}: ${actual}"
 }
 
+p2pnc_verify_signature() {
+	local checksum_file="$1"
+	local bundle_file="$2"
+	local escaped_repository
+	local identity_regexp
+
+	if [[ "${P2PNC_ALLOW_UNSIGNED:-}" == "1" ]]; then
+		p2pnc_log "WARNING: Sigstore verification disabled by P2PNC_ALLOW_UNSIGNED=1"
+		return
+	fi
+	[[ "${p2pnc_repository}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] ||
+		p2pnc_die "invalid GitHub repository: ${p2pnc_repository}"
+	command -v "${p2pnc_cosign}" >/dev/null 2>&1 ||
+		p2pnc_die "cosign is required to verify releases; install cosign or explicitly set P2PNC_ALLOW_UNSIGNED=1"
+	escaped_repository="${p2pnc_repository//./\\.}"
+	identity_regexp="^https://github\\.com/${escaped_repository}/\\.github/workflows/release-main\\.yml@refs/(heads/main|tags/v[0-9]+\\.[0-9]+\\.[0-9]+([.-][0-9A-Za-z.-]+)?)$"
+	"${p2pnc_cosign}" verify-blob "${checksum_file}" \
+		--bundle "${bundle_file}" \
+		--certificate-identity-regexp "${identity_regexp}" \
+		--certificate-oidc-issuer "https://token.actions.githubusercontent.com" >/dev/null ||
+		p2pnc_die "Sigstore verification failed for SHA256SUMS"
+	p2pnc_log "verified SHA256SUMS with Sigstore"
+}
+
 p2pnc_uninstall() {
 	local install_dir="$1"
 	p2pnc_prepare_privileges "${install_dir}"
@@ -206,6 +233,7 @@ p2pnc_install() {
 	local release_base
 	local archive
 	local checksums
+	local checksums_bundle
 	local source_dir
 
 	case "${os_name}-${arch}" in
@@ -226,10 +254,15 @@ p2pnc_install() {
 	p2pnc_temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/p2p-nc-install.XXXXXXXX")"
 	archive="${p2pnc_temp_dir}/${archive_name}"
 	checksums="${p2pnc_temp_dir}/SHA256SUMS"
+	checksums_bundle="${p2pnc_temp_dir}/SHA256SUMS.sigstore.json"
 
 	p2pnc_log "downloading ${release_base}/${archive_name}"
 	p2pnc_download "${release_base}/${archive_name}" "${archive}"
 	p2pnc_download "${release_base}/SHA256SUMS" "${checksums}"
+	if [[ "${P2PNC_ALLOW_UNSIGNED:-}" != "1" ]]; then
+		p2pnc_download "${release_base}/SHA256SUMS.sigstore.json" "${checksums_bundle}"
+	fi
+	p2pnc_verify_signature "${checksums}" "${checksums_bundle}"
 	p2pnc_verify "${archive}" "${checksums}"
 
 	tar -xzf "${archive}" -C "${p2pnc_temp_dir}"

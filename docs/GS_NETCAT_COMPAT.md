@@ -192,7 +192,7 @@ server's network identity.
 
 ## Security boundary
 
-Noise, QUIC TLS, and the interactive signed WebRTC challenge authenticate the
+Noise, QUIC TLS, and the channel-bound signed WebRTC transcript authenticate the
 server PeerId and protect stream contents in transit. They do not authorize a
 client. In the current version, any peer that knows a listener PeerId and
 logical port can attempt to use `-d`, `-u`, `-S`, `-e`, or `-i`.

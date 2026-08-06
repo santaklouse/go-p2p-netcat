@@ -9,8 +9,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 
+	"github.com/santaklouse/go-p2p-netcat/internal/secretfile"
 	"github.com/santaklouse/go-p2p-netcat/protocol/pairing"
 	"github.com/santaklouse/go-p2p-netcat/protocol/tokenfile"
 	"golang.org/x/term"
@@ -29,8 +29,8 @@ func readPairingTokenFile(path string) (string, error) {
 	if !info.Mode().IsRegular() {
 		return "", errors.New("pairing token file must be a regular file")
 	}
-	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
-		return "", errors.New("pairing token file permissions must not grant group or other access")
+	if err := secretfile.CheckPermissions(file, info); err != nil {
+		return "", fmt.Errorf("pairing token file is not private: %w", err)
 	}
 	maximum := len(pairing.TokenPrefix) + base64.RawURLEncoding.EncodedLen(pairing.MaxTokenSize) + 2
 	data, err := io.ReadAll(io.LimitReader(file, int64(maximum+1)))
@@ -112,8 +112,8 @@ func readPasswordFile(path string) ([]byte, error) {
 	if !info.Mode().IsRegular() {
 		return nil, errors.New("password file must be a regular file")
 	}
-	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
-		return nil, errors.New("password file permissions must not grant group or other access")
+	if err := secretfile.CheckPermissions(file, info); err != nil {
+		return nil, fmt.Errorf("password file is not private: %w", err)
 	}
 	data, err := io.ReadAll(io.LimitReader(file, tokenfile.MaximumPasswordSize+3))
 	if err != nil {
@@ -144,6 +144,16 @@ func readEncryptedTokenFile(path string) (string, error) {
 		return "", fmt.Errorf("open encrypted token file: %w", err)
 	}
 	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return "", fmt.Errorf("inspect encrypted token file: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return "", errors.New("encrypted token file must be a regular file")
+	}
+	if err := secretfile.CheckPermissions(file, info); err != nil {
+		return "", fmt.Errorf("encrypted token file is not private: %w", err)
+	}
 	data, err := io.ReadAll(io.LimitReader(file, tokenfile.MaxEnvelopeSize*2+1))
 	if err != nil {
 		return "", fmt.Errorf("read encrypted token file: %w", err)
@@ -179,11 +189,12 @@ func writeExclusiveTokenFile(path, value string) (returnErr error) {
 		_ = file.Close()
 		return fmt.Errorf("write token output file: %w", err)
 	}
+	if err := secretfile.Protect(file); err != nil {
+		_ = file.Close()
+		return fmt.Errorf("protect token output file: %w", err)
+	}
 	if err := file.Close(); err != nil {
 		return fmt.Errorf("close token output file: %w", err)
-	}
-	if err := os.Chmod(absolute, 0o600); err != nil {
-		return fmt.Errorf("protect token output file: %w", err)
 	}
 	removeOnFailure = false
 	return nil

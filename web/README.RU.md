@@ -99,7 +99,8 @@ Worker слушает подписанные объявления в отдел�
 запрашивает адрес PeerId через `https://delegated-ipfs.dev/routing/v1`, затем
 использует DHT как fallback. Первый аутентифицированный канал побеждает.
 Успешный libp2p-маршрут кешируется в IndexedDB на 24 часа. WebRTC-сервер
-аутентифицируется подписанным Ed25519 challenge, соответствующим введённому
+аутентифицируется channel-bound Ed25519 transcript, который покрывает challenge,
+signaling session, логический порт и точные offer/answer SDP для введённого
 PeerId. Указанный в UI таймаут является единым deadline для Worker/libp2p,
 native WebRTC, поэтому медленный DHT-запрос не блокирует
 форму дольше выбранного интервала. Файл `public/network-config.json` позволяет добавить другие совместимые

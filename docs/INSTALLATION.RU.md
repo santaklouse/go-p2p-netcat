@@ -6,6 +6,7 @@
 
 - Go с `GOTOOLCHAIN=auto`: нужная версия toolchain выбирается из `go.mod`;
 - macOS, Linux или Windows;
+- cosign v3 для проверяемой установки binary release;
 - исходящие TCP/WSS и UDP для discovery, signaling, QUIC и WebRTC.
 
 ## Проверяемый deploy-скрипт
@@ -18,16 +19,23 @@ curl -fsSL \
   bash
 ```
 
-Скрипт определяет release target, загружает архив и `SHA256SUMS`, проверяет
-SHA-256 до распаковки и устанавливает все три имени команды. Он не запускает
-listener, background service, shell, cron job или login item.
+Скрипт определяет release target, загружает архив, `SHA256SUMS` и его Sigstore
+bundle. Он проверяет, что manifest подписан workflow `release-main.yml` этого
+репозитория через GitHub Actions OIDC issuer, затем проверяет SHA-256 до
+распаковки и устанавливает все три имени команды. Скрипт не запускает listener,
+background service, shell, cron job или login item.
+
+В релизах старше `v0.7.0` нет Sigstore bundles. Их legacy-установка только с
+checksum должна быть явно включена через `P2PNC_ALLOW_UNSIGNED=1`; это ослабляет
+проверку происхождения и подходит только для намеренно закреплённого
+исторического релиза.
 
 Закрепить версию:
 
 ```bash
 curl -fsSL \
   https://raw.githubusercontent.com/santaklouse/go-p2p-netcat/main/deploy/deploy.sh |
-  P2PNC_VERSION=v0.6.0 bash
+  P2PNC_VERSION=v0.7.0 bash
 ```
 
 Установить без повышенных привилегий:
@@ -58,6 +66,42 @@ bash /tmp/p2p-nc-deploy.sh
 
 Полный список переменных находится в начале
 [`deploy/deploy.sh`](../deploy/deploy.sh).
+
+Ручная проверка использует ту же политику identity и issuer:
+
+```bash
+cosign verify-blob SHA256SUMS \
+  --bundle SHA256SUMS.sigstore.json \
+  --certificate-identity-regexp \
+  '^https://github\.com/santaklouse/go-p2p-netcat/\.github/workflows/release-main\.yml@refs/(heads/main|tags/v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?)$' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+## Дополнительные Linux-архивы с UPX
+
+Каждый релиз публикует исходные Linux-архивы и меньшие, явно названные
+UPX-варианты:
+
+- `p2p-nc-linux-amd64-upx.tar.gz`;
+- `p2p-nc-linux-arm64-upx.tar.gz`.
+
+Release workflow использует официальный UPX 5.2.0 с закреплённой контрольной
+суммой, проверяет каждый упакованный файл через `upx -t`, снова распаковывает
+его и побайтово сравнивает с исходным бинарником. Для `amd64` дополнительно
+выполняется реальный smoke-тест `--version`. UPX не применяется к артефактам
+macOS, Windows или Android. Упакованные файлы сохраняют штатные метаданные UPX
+и могут быть распакованы для анализа:
+
+```bash
+upx -t p2p-nc-linux-amd64-upx/p2p-nc
+upx -d p2p-nc-linux-amd64-upx/p2p-nc -o p2p-nc-linux-amd64-unpacked
+cmp p2p-nc-linux-amd64/p2p-nc p2p-nc-linux-amd64-unpacked
+```
+
+Deploy-скрипт по умолчанию продолжает выбирать исходный архив. Выбирайте
+UPX-вариант вручную, только когда меньший размер загрузки или распакованного
+файла оправдывает дополнительную распаковку при старте и возможное внимание
+защитного ПО.
 
 ## Docker и GitHub Packages
 
@@ -270,7 +314,9 @@ p2p-nc token unlock \
 автоматизации `--password-file` принимает обычный файл без прав для group и
 other. Разблокированный файл является bearer credential, и при его дальнейшем
 использовании через `--pairing-token-file` пароль не запрашивается. В Windows
-храните его в профиле текущего пользователя, а не в общем каталоге.
+token- и password-файлы отклоняются, если их DACL разрешает чувствительный
+доступ кому-либо, кроме owner, текущего пользователя, LocalSystem или встроенных
+Administrators.
 
 Token передаётся через `--pairing-token`, `--pairing-token-file` или
 `P2P_NETCAT_TOKEN`. Приватный режим выводит секретные DHT/signaling
