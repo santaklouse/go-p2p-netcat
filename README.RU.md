@@ -123,7 +123,7 @@ go run ./cmd/webrtc-soak \
 
 ## Установка
 
-Текущая стабильная версия — `v0.5.1`. Архив релиза содержит исполняемые файлы
+Текущая стабильная версия — `v0.6.0`. Архив релиза содержит исполняемые файлы
 `p2p-nc` и `pnc`, лицензию MIT и обе версии README. Перед установкой следует проверить
 архив по файлу `SHA256SUMS`.
 
@@ -135,7 +135,7 @@ go run ./cmd/webrtc-soak \
 ```bash
 set -euo pipefail
 
-P2PNC_VERSION="v0.5.1"
+P2PNC_VERSION="v0.6.0"
 case "$(uname -m)" in
   x86_64|amd64) P2PNC_ARCH="amd64" ;;
   aarch64|arm64) P2PNC_ARCH="arm64" ;;
@@ -161,7 +161,7 @@ p2p-nc --version
 ```bash
 set -euo pipefail
 
-P2PNC_VERSION="v0.5.1"
+P2PNC_VERSION="v0.6.0"
 case "$(uname -m)" in
   x86_64|amd64) P2PNC_ARCH="amd64" ;;
   arm64|aarch64) P2PNC_ARCH="arm64" ;;
@@ -194,7 +194,7 @@ sudo xattr -d com.apple.quarantine /usr/local/bin/p2p-nc
 
 ```powershell
 $ErrorActionPreference = 'Stop'
-$Version = 'v0.5.1'
+$Version = 'v0.6.0'
 $Architecture = switch ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()) {
     'X64' { 'amd64' }
     'Arm64' { 'arm64' }
@@ -237,7 +237,7 @@ debugging, подключите телефон, установите Android Pla
 ```bash
 set -euo pipefail
 
-P2PNC_VERSION="v0.5.1"
+P2PNC_VERSION="v0.6.0"
 P2PNC_ANDROID_ABI="$(adb shell getprop ro.product.cpu.abi | tr -d '\r')"
 case "$P2PNC_ANDROID_ABI" in
   arm64-v8a) P2PNC_ANDROID_ARCH="arm64" ;;
@@ -282,9 +282,9 @@ toolchain:
 
 ```bash
 GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
-  github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@v0.5.1
+  github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@v0.6.0
 GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
-  github.com/santaklouse/go-p2p-netcat/cmd/pnc@v0.5.1
+  github.com/santaklouse/go-p2p-netcat/cmd/pnc@v0.6.0
 "$(go env GOPATH)/bin/p2p-nc" --version
 ```
 
@@ -513,7 +513,7 @@ go run ./cmd/webrtc-soak --profile ci \
 
 Сборки Linux и macOS публикуются как `.tar.gz`, сборки Windows — как `.zip`.
 Сборки Android также публикуются как `.tar.gz`. Каждый релиз содержит файл
-`SHA256SUMS`. Семантические теги, например `v0.5.1`, создают стабильные релизы.
+`SHA256SUMS`. Семантические теги, например `v0.6.0`, создают стабильные релизы.
 Сборки из `main` помечаются как prerelease и получают детерминированный тег,
 который начинается с `main-` и заканчивается первыми 12 символами SHA коммита.
 Повторный запуск workflow обновляет тот же релиз, а не создаёт дубликат.

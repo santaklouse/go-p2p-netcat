@@ -1,8 +1,8 @@
-#!/usr/bin/env bash   
+#!/usr/bin/env bash
 
 set -euo pipefail
 
-P2PNC_VERSION="v0.5.1"
+P2PNC_VERSION="v0.6.0"
 P2PNC_ANDROID_ABI="$(adb shell getprop ro.product.cpu.abi | tr -d '\r')"
 case "$P2PNC_ANDROID_ABI" in
   arm64-v8a) P2PNC_ANDROID_ARCH="arm64" ;;
