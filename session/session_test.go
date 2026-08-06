@@ -139,6 +139,20 @@ func TestSOCKS5ConnectEndToEnd(t *testing.T) {
 	}
 }
 
+func TestSOCKSHandshakeTimeoutResetsStream(t *testing.T) {
+	serverConnection, clientConnection := testTCPPair(t)
+	serverStream := &testTCPStream{TCPConn: serverConnection}
+	defer clientConnection.Close()
+	started := time.Now()
+	err := SOCKS(context.Background(), serverStream, 20*time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "handshake timed out") {
+		t.Fatalf("SOCKS timeout error = %v", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("SOCKS timeout took %s", elapsed)
+	}
+}
+
 type testTCPStream struct {
 	*net.TCPConn
 }

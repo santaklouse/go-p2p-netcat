@@ -11,7 +11,10 @@ import (
 	"time"
 )
 
-const flowWindowBytes = 256 * 1024
+const (
+	flowWindowBytes   = 256 * 1024
+	maxReadQueueBytes = 1024 * 1024
+)
 
 const controlDeliveryDelay = 50 * time.Millisecond
 
@@ -23,6 +26,7 @@ type Stream struct {
 	readMu      sync.Mutex
 	readCond    *sync.Cond
 	readQueue   [][]byte
+	readQueued  int
 	readOffset  int
 	readErr     error
 	closedRead  bool
@@ -62,6 +66,7 @@ func (s *Stream) Read(value []byte) (int, error) {
 	s.readOffset += count
 	if s.readOffset == len(chunk) {
 		s.readQueue = s.readQueue[1:]
+		s.readQueued -= len(chunk)
 		s.readOffset = 0
 		go func() { _ = s.sendControl("ack:" + strconv.Itoa(len(chunk))) }()
 	}
@@ -139,7 +144,14 @@ func (s *Stream) Receive(frame Frame) error {
 	case FrameData:
 		s.readMu.Lock()
 		if !s.closedRead && !s.closed.Load() {
+			if len(frame.Payload) > maxReadQueueBytes-s.readQueued {
+				s.readMu.Unlock()
+				err := fmt.Errorf("native WebRTC receive queue exceeds %d bytes", maxReadQueueBytes)
+				s.fail(err, true)
+				return err
+			}
 			s.readQueue = append(s.readQueue, append([]byte(nil), frame.Payload...))
+			s.readQueued += len(frame.Payload)
 			s.readCond.Signal()
 		}
 		s.readMu.Unlock()

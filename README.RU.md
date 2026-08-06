@@ -21,8 +21,9 @@ curl -fsSL \
 ```
 
 Deploy-скрипт определяет Linux, macOS или Android и архитектуру процессора,
-загружает подходящий release, проверяет его по `SHA256SUMS` и устанавливает
-`p2p-nc`, `pnc` и `p2p-netcat`. Закрепление версии, другой каталог и удаление
+загружает подходящий release, проверяет keyless Sigstore-подпись `SHA256SUMS`,
+затем checksum архива и устанавливает `p2p-nc`, `pnc` и `p2p-netcat`. Требуется
+cosign v3. Закрепление версии, другой каталог и удаление
 описаны в разделе [установки](docs/INSTALLATION.RU.md#проверяемый-deploy-скрипт).
 
 Linux-контейнеры `amd64`/`arm64` публикуются в
@@ -93,9 +94,9 @@ Go-пиры дополнительно поддерживают framed UDP forwa
 - приватные вращающиеся DHT rendezvous из `pnc1_` token;
 - mutual admission handshake до передачи прикладных байтов;
 - canonical CBOR, HKDF-SHA-256, AES-256-GCM и подписанные RouteRecord;
-- native WebRTC v2 с Nostr/WebTorrent signaling, проверкой PeerId,
-  шифрованием через pairing token, flow control, 120-секундным восстановлением
-  потока и гонкой libp2p-маршрутов;
+- native WebRTC v2 с Nostr/WebTorrent signaling, channel-bound проверкой PeerId
+  по точным хэшам SDP, шифрованием через pairing token, flow control,
+  120-секундным восстановлением потока и гонкой libp2p-маршрутов;
 - raw stdin/stdout, `-e`, TCP и сохраняющий границы пакетов UDP forwarding,
   SOCKS4/4a/5 и PTY, включая Windows ConPTY;
 - `-l`, `-k`, `-w`, `-d`, `-p`, `-u`, `-q`, `-S`, `-T`, `-i`, `-z`, `-e`,
@@ -123,9 +124,17 @@ go run ./cmd/webrtc-soak \
 
 ## Установка
 
-Текущая стабильная версия — `v0.6.0`. Архив релиза содержит исполняемые файлы
+Текущая стабильная версия — `v0.7.0`. Архив релиза содержит исполняемые файлы
 `p2p-nc` и `pnc`, лицензию MIT и обе версии README. Перед установкой следует проверить
 архив по файлу `SHA256SUMS`.
+Начиная с `v0.7.0`, перед доверием к checksum следует проверить Sigstore bundle
+файла `SHA256SUMS`.
+
+В Linux-релизах рядом с исходными несжатыми архивами дополнительно публикуются
+`p2p-nc-linux-amd64-upx.tar.gz` и `p2p-nc-linux-arm64-upx.tar.gz`. В этих
+вариантах используется стандартная UPX-упаковка, которую можно проверить и
+распаковать штатным UPX. Deploy-скрипт намеренно устанавливает исходный архив,
+если оператор не выбрал UPX-вариант вручную.
 
 ### Linux
 
@@ -135,7 +144,7 @@ go run ./cmd/webrtc-soak \
 ```bash
 set -euo pipefail
 
-P2PNC_VERSION="v0.6.0"
+P2PNC_VERSION="v0.7.0"
 case "$(uname -m)" in
   x86_64|amd64) P2PNC_ARCH="amd64" ;;
   aarch64|arm64) P2PNC_ARCH="arm64" ;;
@@ -147,6 +156,11 @@ P2PNC_RELEASE_URL="https://github.com/santaklouse/go-p2p-netcat/releases/downloa
 
 curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/${P2PNC_ARCHIVE}"
 curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/SHA256SUMS"
+curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/SHA256SUMS.sigstore.json"
+cosign verify-blob SHA256SUMS \
+  --bundle SHA256SUMS.sigstore.json \
+  --certificate-identity "https://github.com/santaklouse/go-p2p-netcat/.github/workflows/release-main.yml@refs/tags/${P2PNC_VERSION}" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
 grep "  ${P2PNC_ARCHIVE}$" SHA256SUMS | sha256sum --check -
 tar -xzf "$P2PNC_ARCHIVE"
 sudo install -m 0755 "p2p-nc-linux-${P2PNC_ARCH}/p2p-nc" /usr/local/bin/p2p-nc
@@ -161,7 +175,7 @@ p2p-nc --version
 ```bash
 set -euo pipefail
 
-P2PNC_VERSION="v0.6.0"
+P2PNC_VERSION="v0.7.0"
 case "$(uname -m)" in
   x86_64|amd64) P2PNC_ARCH="amd64" ;;
   arm64|aarch64) P2PNC_ARCH="arm64" ;;
@@ -173,6 +187,11 @@ P2PNC_RELEASE_URL="https://github.com/santaklouse/go-p2p-netcat/releases/downloa
 
 curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/${P2PNC_ARCHIVE}"
 curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/SHA256SUMS"
+curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/SHA256SUMS.sigstore.json"
+cosign verify-blob SHA256SUMS \
+  --bundle SHA256SUMS.sigstore.json \
+  --certificate-identity "https://github.com/santaklouse/go-p2p-netcat/.github/workflows/release-main.yml@refs/tags/${P2PNC_VERSION}" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
 grep "  ${P2PNC_ARCHIVE}$" SHA256SUMS | shasum -a 256 --check
 tar -xzf "$P2PNC_ARCHIVE"
 sudo mkdir -p /usr/local/bin
@@ -194,7 +213,7 @@ sudo xattr -d com.apple.quarantine /usr/local/bin/p2p-nc
 
 ```powershell
 $ErrorActionPreference = 'Stop'
-$Version = 'v0.6.0'
+$Version = 'v0.7.0'
 $Architecture = switch ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()) {
     'X64' { 'amd64' }
     'Arm64' { 'arm64' }
@@ -205,6 +224,12 @@ $ReleaseUrl = "https://github.com/santaklouse/go-p2p-netcat/releases/download/$V
 
 Invoke-WebRequest "$ReleaseUrl/$Archive" -OutFile $Archive
 Invoke-WebRequest "$ReleaseUrl/SHA256SUMS" -OutFile 'SHA256SUMS'
+Invoke-WebRequest "$ReleaseUrl/SHA256SUMS.sigstore.json" -OutFile 'SHA256SUMS.sigstore.json'
+cosign verify-blob SHA256SUMS `
+    --bundle SHA256SUMS.sigstore.json `
+    --certificate-identity "https://github.com/santaklouse/go-p2p-netcat/.github/workflows/release-main.yml@refs/tags/$Version" `
+    --certificate-oidc-issuer https://token.actions.githubusercontent.com
+if ($LASTEXITCODE -ne 0) { throw 'Проверка Sigstore для SHA256SUMS не пройдена' }
 $ChecksumLine = Get-Content 'SHA256SUMS' | Where-Object { $_ -match ([regex]::Escape($Archive) + '$') }
 if (-not $ChecksumLine) { throw "Не найдена контрольная сумма для $Archive" }
 $ExpectedHash = ($ChecksumLine -split '\s+')[0].ToLowerInvariant()
@@ -237,7 +262,7 @@ debugging, подключите телефон, установите Android Pla
 ```bash
 set -euo pipefail
 
-P2PNC_VERSION="v0.6.0"
+P2PNC_VERSION="v0.7.0"
 P2PNC_ANDROID_ABI="$(adb shell getprop ro.product.cpu.abi | tr -d '\r')"
 case "$P2PNC_ANDROID_ABI" in
   arm64-v8a) P2PNC_ANDROID_ARCH="arm64" ;;
@@ -250,6 +275,11 @@ P2PNC_RELEASE_URL="https://github.com/santaklouse/go-p2p-netcat/releases/downloa
 
 curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/${P2PNC_ARCHIVE}"
 curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/SHA256SUMS"
+curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/SHA256SUMS.sigstore.json"
+cosign verify-blob SHA256SUMS \
+  --bundle SHA256SUMS.sigstore.json \
+  --certificate-identity "https://github.com/santaklouse/go-p2p-netcat/.github/workflows/release-main.yml@refs/tags/${P2PNC_VERSION}" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
 if command -v sha256sum >/dev/null 2>&1; then
   grep "  ${P2PNC_ARCHIVE}$" SHA256SUMS | sha256sum --check -
 else
@@ -272,8 +302,11 @@ listener. Явный override ниже также исправляет выпу�
 Android default:
 
 ```bash
-adb shell 'P2P_NETCAT_LISTENER_LOCK_DIR=/data/local/tmp/p2p-netcat/listeners /data/local/tmp/p2p-nc -lik --identity /data/local/tmp/p2p-nc-identity.key 31337'
+adb shell 'P2P_NETCAT_LISTENER_LOCK_DIR=/data/local/tmp/p2p-netcat/listeners /data/local/tmp/p2p-nc -lik --allow-unauthenticated-listener --identity /data/local/tmp/p2p-nc-identity.key 31337'
 ```
+
+Эта Android-команда намеренно демонстрирует явный override публичного доступа.
+Для настоящего PTY-listener используйте pairing token.
 
 ### Установка через Go
 
@@ -282,9 +315,9 @@ toolchain:
 
 ```bash
 GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
-  github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@v0.6.0
+  github.com/santaklouse/go-p2p-netcat/cmd/p2p-nc@v0.7.0
 GOTOOLCHAIN=auto CGO_ENABLED=0 go install -ldflags="-s -w" \
-  github.com/santaklouse/go-p2p-netcat/cmd/pnc@v0.6.0
+  github.com/santaklouse/go-p2p-netcat/cmd/pnc@v0.7.0
 "$(go env GOPATH)/bin/p2p-nc" --version
 ```
 
@@ -365,6 +398,17 @@ wait "$DEMO_PID"
 cat "$DEMO_DIR/received.txt"
 ```
 
+### Безопасные значения по умолчанию
+
+Raw stream listener остаётся публичным для сценариев в стиле netcat. Listener
+`-i`, `-e`, `-S`, TCP forwarding и UDP forwarding требуют pairing token. Явный
+override `--allow-unauthenticated-listener` предназначен только для намеренно
+публичного сервиса и выводит предупреждение. Собственный Native WebRTC через
+Nostr/WebTorrent включается только с pairing token; отдельный аварийный флаг
+`--allow-unauthenticated-native-webrtc` небезопасен. Стандартный libp2p WebRTC
+Direct остаётся доступным без token, потому что Noise привязывает его к
+ожидаемому PeerId.
+
 ## Приватный pairing
 
 Создать token из постоянной identity:
@@ -412,31 +456,48 @@ Token содержит PeerId и логический порт, поэтому �
 ```
 
 При разблокировке пароль запрашивается один раз и создаётся новый bearer-token
-файл с mode `0600` в Unix или унаследованным ACL родительского каталога в
-Windows. Последующие команды listener и client используют
+файл с mode `0600` в Unix или защищённым DACL для текущего пользователя,
+LocalSystem и встроенных Administrators в Windows. Последующие команды listener и client используют
 `--pairing-token-file` без пароля. Ни одна команда не перезаписывает уже
-существующий output-файл. В Windows храните файл в профиле текущего пользователя,
-а не в общем каталоге.
+существующий output-файл. Существующие Windows-секреты читаются только тогда,
+когда их DACL разрешает чувствительный доступ owner, текущему пользователю,
+LocalSystem или встроенным Administrators.
 
 ## Forwarding, SOCKS и PTY
+
+Создайте привязанные к сервисам token для примеров ниже:
+
+```bash
+install -d -m 0700 "$HOME/.config/p2p-netcat"
+./p2p-nc token --identity "$HOME/.config/p2p-netcat/identity.key" 15432 >"$HOME/.config/p2p-netcat/postgres.token"
+./p2p-nc token --identity "$HOME/.config/p2p-netcat/identity.key" 35182 >"$HOME/.config/p2p-netcat/wireguard.token"
+./p2p-nc token --identity "$HOME/.config/p2p-netcat/identity.key" 1080 >"$HOME/.config/p2p-netcat/socks.token"
+./p2p-nc token --identity "$HOME/.config/p2p-netcat/identity.key" 2222 >"$HOME/.config/p2p-netcat/shell.token"
+chmod 0600 "$HOME/.config/p2p-netcat/"*.token
+```
 
 Удалённый TCP forwarding к `127.0.0.1:5432`:
 
 ```bash
-./p2p-nc -l 15432 -p 5432
-./p2p-nc -p 15432 12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 15432
+./p2p-nc -l -p 5432 \
+  --identity "$HOME/.config/p2p-netcat/identity.key" \
+  --pairing-token-file "$HOME/.config/p2p-netcat/postgres.token"
+./p2p-nc -p 15432 \
+  --pairing-token-file "$HOME/.config/p2p-netcat/postgres.token"
 ```
 
 Перенаправление локального UDP endpoint к WireGuard на удалённом пире:
 
 ```bash
 # Машина с WireGuard-сервером
-./p2p-nc -u -l -d 127.0.0.1 -p 51820 35182
+./p2p-nc -u -l -d 127.0.0.1 -p 51820 \
+  --identity "$HOME/.config/p2p-netcat/identity.key" \
+  --pairing-token-file "$HOME/.config/p2p-netcat/wireguard.token"
 
 # Машина с WireGuard-клиентом
 sudo ./deploy/wireguard-full-tunnel.sh -- \
   /usr/local/bin/p2p-nc -u --udp-idle-timeout 0 -p 15182 \
-  12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 35182
+  --pairing-token-file "$HOME/.config/p2p-netcat/wireguard.token"
 ```
 
 В WireGuard-конфигурации клиента укажите peer endpoint
@@ -453,16 +514,22 @@ sockets должны продолжать использовать физиче�
 SOCKS server на удалённой стороне:
 
 ```bash
-./p2p-nc -l -S 1080
-./p2p-nc -p 1080 12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 1080
+./p2p-nc -l -S \
+  --identity "$HOME/.config/p2p-netcat/identity.key" \
+  --pairing-token-file "$HOME/.config/p2p-netcat/socks.token"
+./p2p-nc -p 1080 \
+  --pairing-token-file "$HOME/.config/p2p-netcat/socks.token"
 curl --socks5-hostname 127.0.0.1:1080 https://example.com/
 ```
 
 Интерактивный login shell:
 
 ```bash
-./p2p-nc -l -i 2222
-./p2p-nc -i 12D3KooWJ7satLo5LXjhSZBMVTWRG1AZ77sQYtX81qHHf2VtscdL 2222
+./p2p-nc -l -i \
+  --identity "$HOME/.config/p2p-netcat/identity.key" \
+  --pairing-token-file "$HOME/.config/p2p-netcat/shell.token"
+./p2p-nc -i \
+  --pairing-token-file "$HOME/.config/p2p-netcat/shell.token"
 ```
 
 В PTY-клиенте последовательность `Ctrl-E`, затем `q` закрывает сеанс.
@@ -508,14 +575,18 @@ go run ./cmd/webrtc-soak --profile ci \
 запускает более длинный профиль `soak` на Ubuntu и macOS и позволяет вручную
 выбирать профиль.
 
-- Linux: `amd64`, `arm64`;
+- Linux: `amd64`, `arm64`, с исходными и дополнительными `-upx` архивами;
 - macOS: `amd64`, `arm64`;
 - Windows: `amd64`, `arm64`;
 - Android 7.0 (API 24) и новее: `arm64`, `armv7`.
 
 Сборки Linux и macOS публикуются как `.tar.gz`, сборки Windows — как `.zip`.
-Сборки Android также публикуются как `.tar.gz`. Каждый релиз содержит файл
-`SHA256SUMS`. Семантические теги, например `v0.6.0`, создают стабильные релизы.
+Сборки Android также публикуются как `.tar.gz`. Отдельные, явно названные
+UPX-варианты создаются только для Linux `amd64` и `arm64`; бинарники macOS
+никогда не упаковываются UPX. Каждый релиз содержит файл
+`SHA256SUMS` и keyless Sigstore bundles для каждого artifact. Deploy-скрипт
+аутентифицирует подписанный checksum manifest перед проверкой архива.
+Семантические теги, например `v0.7.0`, создают стабильные релизы.
 Сборки из `main` помечаются как prerelease и получают детерминированный тег,
 который начинается с `main-` и заканчивается первыми 12 символами SHA коммита.
 Повторный запуск workflow обновляет тот же релиз, а не создаёт дубликат.

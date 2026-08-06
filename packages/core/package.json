@@ -1,6 +1,6 @@
 {
   "name": "p2p-netcat-core",
-  "version": "0.5.1",
+  "version": "0.7.0",
   "description": "Browser-safe protocol, addressing and dial planning primitives for p2p-netcat",
   "type": "module",
   "sideEffects": false,

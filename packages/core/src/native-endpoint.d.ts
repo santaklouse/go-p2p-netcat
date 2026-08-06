@@ -3,6 +3,12 @@
 import type { WebRtcStream } from "./index.js";
 import type { NativeSignalingSession } from "./signaling.js";
 
+type NativeWebRtcAuthTranscript = Readonly<{
+  sessionId: string;
+  offerSdp: string;
+  answerSdp: string;
+}>;
+
 export type NativeEndpointState = {
   connectionState: RTCPeerConnectionState;
   iceConnectionState: RTCIceConnectionState;
@@ -12,7 +18,7 @@ export type NativeWebRtcListenerOptions = {
   signalingSessions: NativeSignalingSession[];
   RTCPeerConnection: typeof globalThis.RTCPeerConnection;
   rtcConfig?: RTCConfiguration;
-  createAuthResponse(challenge: Uint8Array): ArrayBuffer | ArrayBufferView | Promise<ArrayBuffer | ArrayBufferView>;
+  createAuthResponse(challenge: Uint8Array, transcript: NativeWebRtcAuthTranscript): ArrayBuffer | ArrayBufferView | Promise<ArrayBuffer | ArrayBufferView>;
   onStream?: (stream: WebRtcStream, remoteId: string, strategy: string) => void;
   onStreamClosed?: (remoteId: string, stream: WebRtcStream) => void;
   onPeerDisconnected?: (remoteId: string, stream: WebRtcStream, error: Error) => void;
@@ -26,7 +32,7 @@ export type NativeWebRtcConnectionOptions = {
   signalingSessions: NativeSignalingSession[];
   RTCPeerConnection: typeof globalThis.RTCPeerConnection;
   rtcConfig?: RTCConfiguration;
-  verifyAuthResponse(response: Uint8Array, challenge: Uint8Array): boolean | Promise<boolean>;
+  verifyAuthResponse(response: Uint8Array, challenge: Uint8Array, transcript: NativeWebRtcAuthTranscript): boolean | Promise<boolean>;
   timeoutMs?: number;
   reconnectGraceMs?: number;
   onReconnecting?: (stream: WebRtcStream, error: Error) => void;

@@ -14,6 +14,8 @@ export const PROTOCOL_PREFIX: "/p2p-netcat/1.0.0";
 export const DEFAULT_SERVICE: 31337;
 export const WEBRTC_APP_ID: "io.github.santaklouse.p2p-netcat.v1";
 export const WEBRTC_AUTH_VERSION: 1;
+export const WEBRTC_AUTH_VERSION_V2: 2;
+export const WEBRTC_AUTH_DOMAIN_V2: "p2p-netcat/native-webrtc-auth/v2";
 export const WEBRTC_CLIENT_ID_BYTES: 20;
 export const PUBSUB_DISCOVERY_TOPIC: "io.github.santaklouse.p2p-netcat.peer-discovery.v1";
 export const PUBSUB_DISCOVERY_INTERVAL_MS: 10000;
@@ -78,12 +80,22 @@ export function preferDialAddresses(a: AddressLike, b: AddressLike): number;
 export function browserDialableAddress(address: AddressLike, options?: { secureContext?: boolean }): boolean;
 export function webRtcRoomId(peerId: unknown, service?: unknown): string;
 export function webRtcAuthPayload(peerId: unknown, service: unknown, challenge: ArrayBuffer | ArrayBufferView): Uint8Array;
+export type WebRtcAuthTranscript = Readonly<{
+  sessionId: string;
+  offerSdp: string;
+  answerSdp: string;
+}>;
+export function webRtcAuthPayloadV2(peerId: unknown, service: unknown, challenge: ArrayBuffer | ArrayBufferView, transcript: WebRtcAuthTranscript): Promise<Uint8Array>;
 export function createWebRtcClientChallenge(clientId: string): Uint8Array;
 export function webRtcClientIdFromChallenge(challenge: ArrayBuffer | ArrayBufferView): string | null;
 export function signWebRtcAuthResponse(privateKey: PrivateKey, service: unknown, challenge: ArrayBuffer | ArrayBufferView): Promise<Uint8Array>;
 export function verifyWebRtcAuthResponse(value: ArrayBuffer | ArrayBufferView, expectedPeerId: unknown, service: unknown, challenge: ArrayBuffer | ArrayBufferView): Promise<boolean>;
+export function signWebRtcAuthResponseV2(privateKey: PrivateKey, service: unknown, challenge: ArrayBuffer | ArrayBufferView, transcript: WebRtcAuthTranscript): Promise<Uint8Array>;
+export function verifyWebRtcAuthResponseV2(value: ArrayBuffer | ArrayBufferView, expectedPeerId: unknown, service: unknown, challenge: ArrayBuffer | ArrayBufferView, transcript: WebRtcAuthTranscript): Promise<boolean>;
 export function encodeWebRtcAuthResponse(publicKey: ArrayBuffer | ArrayBufferView, signature: ArrayBuffer | ArrayBufferView): Uint8Array;
 export function decodeWebRtcAuthResponse(value: ArrayBuffer | ArrayBufferView): Readonly<{ publicKey: Uint8Array; signature: Uint8Array }>;
+export function encodeWebRtcAuthResponseV2(publicKey: ArrayBuffer | ArrayBufferView, signature: ArrayBuffer | ArrayBufferView): Uint8Array;
+export function decodeWebRtcAuthResponseV2(value: ArrayBuffer | ArrayBufferView): Readonly<{ publicKey: Uint8Array; signature: Uint8Array }>;
 
 export class WebRtcStream implements AsyncIterable<Uint8Array> {
   status: "open" | "closed";
@@ -94,6 +106,7 @@ export class WebRtcStream implements AsyncIterable<Uint8Array> {
     sendControl: (control: string) => void | Promise<void>;
     onFinalize?: () => void;
     flowWindowBytes?: number;
+    maxReadQueueBytes?: number;
     keepAliveIntervalMs?: number;
   });
   send(chunk: ArrayBuffer | ArrayBufferView): boolean;

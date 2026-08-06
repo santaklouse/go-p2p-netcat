@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { encode, rfc8949EncodeOptions } from 'cborg'
-import { generateKeyPair } from '@libp2p/crypto/keys'
+import { generateKeyPair, privateKeyFromProtobuf } from '@libp2p/crypto/keys'
 import { peerIdFromPrivateKey } from '@libp2p/peer-id'
 import {
   DEFAULT_STUN_URLS,
@@ -32,6 +32,7 @@ import {
   decodeNativeWebRtcControl,
   decodeNativeWebRtcFrame,
   decodeWebRtcAuthResponse,
+  decodeWebRtcAuthResponseV2,
   defaultRtcConfiguration,
   decodePtyResize,
   derivePairingKey,
@@ -40,6 +41,7 @@ import {
   encodePtyResize,
   encodeNativeWebRtcFrame,
   encodeWebRtcAuthResponse,
+  encodeWebRtcAuthResponseV2,
   normalizeRelayAddress,
   openPairingPayload,
   pairingProviderCids,
@@ -52,11 +54,14 @@ import {
   sealPairingPayload,
   signRouteRecord,
   signWebRtcAuthResponse,
+  signWebRtcAuthResponseV2,
   verifyWebRtcAuthResponse,
+  verifyWebRtcAuthResponseV2,
   verifyRouteRecord,
   verifySessionAuthAck,
   verifySessionAuthHello,
   webRtcAuthPayload,
+  webRtcAuthPayloadV2,
   webRtcClientIdFromChallenge,
   webRtcRoomId,
   validateService
@@ -66,6 +71,11 @@ const TEST_SERVER_PEER_ID = '12D3KooWQ3uxpHgjDKE6vGmvzKS8RPbxUDLwJ7XCLaD6YXdUfbR
 
 function hex (value) {
   return Array.from(value, byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+function unhex (value) {
+  if (value.length % 2 !== 0) throw new Error('hex value must contain complete bytes')
+  return Uint8Array.from(value.match(/../g) ?? [], byte => Number.parseInt(byte, 16))
 }
 
 class FakeSignalingWebSocket {
@@ -690,6 +700,84 @@ test('core signs and verifies a native WebRTC challenge for the exact PeerId', a
   assert.equal(await verifyWebRtcAuthResponse(response, peerId, 31338, challenge), false)
 })
 
+test('native WebRTC v2 authentication is bound to the exact SDP transcript', async () => {
+  const privateKey = await generateKeyPair('Ed25519')
+  const peerId = peerIdFromPrivateKey(privateKey).toString()
+  const challenge = new Uint8Array(32).fill(0x41)
+  const transcript = Object.freeze({
+    sessionId: '0123456789abcdef0123456789abcdef',
+    offerSdp: 'v=0\r\na=fingerprint:sha-256 OFFER\r\n',
+    answerSdp: 'v=0\r\na=fingerprint:sha-256 ANSWER\r\n'
+  })
+  const payload = await webRtcAuthPayloadV2(peerId, 31337, challenge, transcript)
+  assert.ok(payload.byteLength > challenge.byteLength)
+  const response = await signWebRtcAuthResponseV2(privateKey, 31337, challenge, transcript)
+  assert.equal(decodeWebRtcAuthResponseV2(response).signature.byteLength > 0, true)
+  assert.equal(await verifyWebRtcAuthResponseV2(response, peerId, 31337, challenge, transcript), true)
+
+  const mutations = [
+    { ...transcript, sessionId: 'fedcba9876543210fedcba9876543210' },
+    { ...transcript, offerSdp: `${transcript.offerSdp}a=x:changed\r\n` },
+    { ...transcript, answerSdp: `${transcript.answerSdp}a=x:changed\r\n` }
+  ]
+  for (const changed of mutations) {
+    assert.equal(await verifyWebRtcAuthResponseV2(response, peerId, 31337, challenge, changed), false)
+  }
+  assert.equal(await verifyWebRtcAuthResponseV2(response, peerId, 31338, challenge, transcript), false)
+
+  const legacy = await signWebRtcAuthResponse(privateKey, 31337, challenge)
+  await assert.rejects(
+    verifyWebRtcAuthResponseV2(legacy, peerId, 31337, challenge, transcript),
+    /Unsupported WebRTC authentication response/
+  )
+})
+
+test('native WebRTC v2 transcript matches the Go compatibility vector', async () => {
+  const challenge = new Uint8Array(32).fill(0x41)
+  const transcript = {
+    sessionId: '0123456789abcdef0123456789abcdef',
+    offerSdp: 'v=0\r\na=fingerprint:sha-256 OFFER\r\n',
+    answerSdp: 'v=0\r\na=fingerprint:sha-256 ANSWER\r\n'
+  }
+  const payload = await webRtcAuthPayloadV2(TEST_SERVER_PEER_ID, 31337, challenge, transcript)
+  const expected = '000000207032702d6e65746361742f6e61746976652d7765627274632d617574682f7632' +
+    '000000010200000006636c69656e740000000673657276657200000034313244334b6f6f5751337578704867' +
+    '6a444b453676476d767a4b53385250627855444c774a3758434c6144365958645566625239000000027a69' +
+    '0000002030313233343536373839616263646566303132333435363738396162636465660000002041414141' +
+    '41414141414141414141414141414141414141414141414141414141000000200f117532f93ee2cecff98bd8' +
+    '2f00fd4aa2e0ba73241e0eadd9f6b5c3dec6d0e200000020105188d110c9603ce7cba3d3668933c4014cbdc5' +
+    'ad0d8a8a00295b97b4fc060b'
+  assert.equal(hex(payload), expected)
+})
+
+test('native WebRTC v2 response matches the Go Ed25519 compatibility vector', async () => {
+  const privateKey = privateKeyFromProtobuf(unhex(
+    '080112401111111111111111111111111111111111111111111111111111111111111111' +
+    'd04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737'
+  ))
+  const peerId = '12D3KooWPqT2nMDSiXUSx5D7fasaxhxKigVhcqfkKqrLghCq9jxz'
+  const challenge = new Uint8Array(32).fill(0x41)
+  const transcript = {
+    sessionId: '0123456789abcdef0123456789abcdef',
+    offerSdp: 'v=0\r\na=fingerprint:sha-256 OFFER\r\n',
+    answerSdp: 'v=0\r\na=fingerprint:sha-256 ANSWER\r\n'
+  }
+  const response = await signWebRtcAuthResponseV2(privateKey, 31337, challenge, transcript)
+  const expected = '020024004008011220d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737' +
+    'cc75656ed3c03a6dfa36f74183414d2a463301f80f50e8e56382d207ae879cb20ade38f766f5c94a69c007835633a0a475cb7e1d82069a70483523ceb26c7f0f'
+  assert.equal(hex(response), expected)
+  assert.equal(await verifyWebRtcAuthResponseV2(unhex(expected), peerId, 31337, challenge, transcript), true)
+})
+
+test('native WebRTC auth response codecs reject version downgrade', () => {
+  const key = new Uint8Array([1, 2, 3])
+  const signature = new Uint8Array([4, 5])
+  const v2 = encodeWebRtcAuthResponseV2(key, signature)
+  assert.equal(v2[0], 2)
+  assert.deepEqual([...decodeWebRtcAuthResponseV2(v2).publicKey], [...key])
+  assert.throws(() => decodeWebRtcAuthResponse(v2), /Unsupported WebRTC authentication response/)
+})
+
 test('native WebRTC attempts share one client-session identity', () => {
   const clientId = 'ClientSession1234567'
   const challenge = createWebRtcClientChallenge(clientId)
@@ -801,6 +889,26 @@ test('WebRTC stream limits unacknowledged output until the consumer advances', a
   await sender.close()
   assert.deepEqual(await completed, { value: undefined, done: true })
   await receiver.close()
+})
+
+test('WebRTC stream rejects an oversized receive queue', async () => {
+  const controls = []
+  const stream = new WebRtcStream({
+    maxReadQueueBytes: 4,
+    keepAliveIntervalMs: 0,
+    sendData: async () => {},
+    sendControl: async control => controls.push(control)
+  })
+  stream.receiveData(Uint8Array.from([1, 2, 3, 4]))
+  stream.receiveData(Uint8Array.from([5]))
+  await new Promise(resolve => setImmediate(resolve))
+
+  assert.equal(stream.status, 'closed')
+  assert.ok(controls.includes('abort'))
+  assert.deepEqual(await stream[Symbol.asyncIterator]().next(), {
+    value: undefined,
+    done: true
+  })
 })
 
 test('WebRTC stream preserves queued data while the peer reconnects', async () => {

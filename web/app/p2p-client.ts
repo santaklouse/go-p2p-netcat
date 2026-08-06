@@ -225,13 +225,18 @@ export class BrowserP2PClient {
       this.events.onLog("Выбран указанный libp2p relay", "success");
       return;
     }
+    if (pairingToken.length === 0) {
+      this.events.onLog("Native WebRTC отключён без pairing token");
+      await this.worker.connect(targetPeerId, logicalPort, "", timeout, pairingToken);
+      this.active = "worker";
+      this.events.onLog("Выбран libp2p IPFS-маршрут", "success");
+      return;
+    }
 
     const nativeWebRtc = new BrowserNativeWebRtcClient(this.transportEvents);
     const signalingPeerId = createSignalingPeerId();
     this.nativeWebRtc = nativeWebRtc;
-    if (pairingToken.length > 0) {
-      this.events.onLog("WebRTC: pairing token защищает native signaling");
-    }
+    this.events.onLog("WebRTC: pairing token защищает native signaling");
 
     try {
       const winner = await Promise.any([

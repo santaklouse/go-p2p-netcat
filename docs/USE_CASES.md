@@ -52,6 +52,12 @@ p2p-nc -p 2222 \
   --pairing-token-file ~/.config/p2p-netcat/ssh.token
 ```
 
+Privileged listeners require a pairing token by default. To keep the remaining
+transport examples independent of token-generation steps, snippets that do not
+show `--pairing-token-file` use the explicit
+`--allow-unauthenticated-listener` public-access override. Replace that
+override with a service-scoped pairing token for any non-public destination.
+
 ## OpenSSH
 
 ### Local SSH port
@@ -59,7 +65,7 @@ p2p-nc -p 2222 \
 On the machine that runs `sshd`:
 
 ```bash
-p2p-nc -l -k -d 127.0.0.1 -p 22 22022
+p2p-nc -l -k --allow-unauthenticated-listener -d 127.0.0.1 -p 22 22022
 ```
 
 On the client:
@@ -114,7 +120,7 @@ Server:
 
 ```bash
 python3 -m http.server --bind 127.0.0.1 8000
-p2p-nc -l -k -d 127.0.0.1 -p 8000 28000
+p2p-nc -l -k --allow-unauthenticated-listener -d 127.0.0.1 -p 8000 28000
 ```
 
 Client:
@@ -129,7 +135,7 @@ curl http://127.0.0.1:18000/
 Server:
 
 ```bash
-p2p-nc -l -k -d 127.0.0.1 -p 5432 25432
+p2p-nc -l -k --allow-unauthenticated-listener -d 127.0.0.1 -p 5432 25432
 ```
 
 Client:
@@ -147,7 +153,7 @@ server LAN.
 Run on the Windows machine with Remote Desktop enabled:
 
 ```powershell
-p2p-nc.exe -l -k -d 127.0.0.1 -p 3389 23389
+p2p-nc.exe -l -k --allow-unauthenticated-listener -d 127.0.0.1 -p 3389 23389
 ```
 
 Run on the client:
@@ -165,7 +171,7 @@ forwarding listener there and connect from the other machine:
 
 ```bash
 # Machine A, where the service listens on 127.0.0.1:9000
-p2p-nc -l -k -d 127.0.0.1 -p 9000 29000
+p2p-nc -l -k --allow-unauthenticated-listener -d 127.0.0.1 -p 9000 29000
 
 # Machine B
 p2p-nc -p 19000 12D3KooWQ3uxpHgjDKE6vGmvzKS8RPbxUDLwJ7XCLaD6YXdUfbR9 29000
@@ -177,7 +183,7 @@ curl http://127.0.0.1:19000/
 Start the remote SOCKS endpoint:
 
 ```bash
-p2p-nc -l -k -S 31080
+p2p-nc -l -k -S --allow-unauthenticated-listener 31080
 ```
 
 Expose it as a loopback-only proxy:
@@ -213,7 +219,7 @@ On the OpenVPN server host:
 
 ```bash
 sudo openvpn --config /etc/openvpn/server/server.conf
-p2p-nc -l -k -d 127.0.0.1 -p 1194 31194
+p2p-nc -l -k --allow-unauthenticated-listener -d 127.0.0.1 -p 1194 31194
 ```
 
 On the client, expose OpenVPN locally:
@@ -258,7 +264,7 @@ WireGuard `ListenPort`.
 On the WireGuard server host:
 
 ```bash
-p2p-nc -u -l -k -d 127.0.0.1 -p 51820 35182
+p2p-nc -u -l -k --allow-unauthenticated-listener -d 127.0.0.1 -p 51820 35182
 ```
 
 On the WireGuard client host:
@@ -286,12 +292,13 @@ The wrapper requires Linux, root, `iproute2`, and `setpriv` from `util-linux`.
 Use `--home /var/lib/p2p-netcat-client` when a persistent client identity is
 required, and make that directory writable by the UID selected with `--uid`.
 
-Both commands enable native WebRTC by default. Public Nostr relays and
-WebTorrent trackers exchange signaling only; application packets travel
-peer-to-peer through the ICE-selected DataChannel. This crosses common
-cone/restricted NAT combinations without a user-operated relay. Symmetric NAT
-or networks that block UDP still require TURN, a Circuit Relay, or a reachable
-TCP/WSS route.
+With a pairing token, both commands enable Native WebRTC and encrypt signaling
+exchanged through public Nostr relays and WebTorrent trackers; application
+packets travel peer-to-peer through the ICE-selected DataChannel. Without a
+token, Native WebRTC is disabled unless the separate unsafe override is used.
+Compatible cone/restricted NAT combinations can be crossed without a
+user-operated relay. Symmetric NAT or networks that block UDP still require
+TURN, a Circuit Relay, or a reachable TCP/WSS route.
 
 Merge these transport values into the client WireGuard configuration:
 
@@ -382,7 +389,7 @@ service that must retain an association without an application keepalive,
 disable expiration on both p2p-netcat processes:
 
 ```bash
-p2p-nc -u --udp-idle-timeout 0 -l -k -d 127.0.0.1 -p 51820 35182
+p2p-nc -u --udp-idle-timeout 0 -l -k --allow-unauthenticated-listener -d 127.0.0.1 -p 51820 35182
 sudo wireguard-full-tunnel.sh -- \
   /usr/local/bin/p2p-nc -u --udp-idle-timeout 0 \
   -p 15182 "${P2PNC_PEER_ID}" 35182
@@ -409,6 +416,7 @@ direct discovery as appropriate:
 export P2PNC_RELAY=/dns4/relay.example.net/tcp/443/wss/p2p/12D3KooWEqeQRAJ61HSv9yMPk8yzjke7NxmTFcvFt4GzwXxzVjXW
 
 p2p-nc -u -l -k \
+  --allow-unauthenticated-listener \
   --relay "${P2PNC_RELAY}" \
   --no-quic --no-webrtc --no-mdns --no-pubsub --no-dht \
   -d 127.0.0.1 -p 51820 35182
@@ -431,7 +439,7 @@ fixed-destination UDP services:
 
 ```bash
 # OpenVPN UDP server host
-p2p-nc -u -l -k -d 127.0.0.1 -p 1194 31194
+p2p-nc -u -l -k --allow-unauthenticated-listener -d 127.0.0.1 -p 1194 31194
 
 # OpenVPN UDP client host; configure OpenVPN remote 127.0.0.1 11194 udp
 p2p-nc -u -p 11194 "${P2PNC_PEER_ID}" 31194

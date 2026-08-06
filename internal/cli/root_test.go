@@ -158,6 +158,7 @@ func TestRootRejectsInvalidAndUnsupportedCombinations(t *testing.T) {
 }
 
 func TestValidateModeMatrix(t *testing.T) {
+	t.Setenv("P2P_NETCAT_TOKEN", "")
 	tests := []struct {
 		name    string
 		opts    options
@@ -166,11 +167,11 @@ func TestValidateModeMatrix(t *testing.T) {
 	}{
 		{name: "listener raw", opts: options{listen: true, timeout: 60, udpIdleTimeout: 300}, args: []string{"10001"}},
 		{name: "listener keep-open", opts: options{listen: true, keepOpen: true, timeout: 60, udpIdleTimeout: 300}, args: []string{"10002"}},
-		{name: "listener command", opts: options{listen: true, exec: "printf ok", timeout: 60, udpIdleTimeout: 300}, args: []string{"10003"}},
-		{name: "listener PTY", opts: options{listen: true, interactive: true, timeout: 60, udpIdleTimeout: 300}, args: []string{"10004"}},
-		{name: "listener SOCKS", opts: options{listen: true, socks: true, timeout: 60, udpIdleTimeout: 300}, args: []string{"10005"}},
-		{name: "listener TCP forward", opts: options{listen: true, port: 22, destination: "127.0.0.1", timeout: 60, udpIdleTimeout: 300}, args: []string{"10006"}, changed: []string{"port"}},
-		{name: "listener UDP forward", opts: options{listen: true, keepOpen: true, udp: true, port: 51820, destination: "127.0.0.1", timeout: 60, udpIdleTimeout: 0}, args: []string{"10007"}, changed: []string{"port", "udp-idle-timeout"}},
+		{name: "listener command", opts: options{listen: true, exec: "printf ok", pairingToken: "configured", timeout: 60, udpIdleTimeout: 300}, args: []string{"10003"}},
+		{name: "listener PTY", opts: options{listen: true, interactive: true, pairingToken: "configured", timeout: 60, udpIdleTimeout: 300}, args: []string{"10004"}},
+		{name: "listener SOCKS", opts: options{listen: true, socks: true, pairingToken: "configured", timeout: 60, udpIdleTimeout: 300}, args: []string{"10005"}},
+		{name: "listener TCP forward", opts: options{listen: true, port: 22, destination: "127.0.0.1", pairingToken: "configured", timeout: 60, udpIdleTimeout: 300}, args: []string{"10006"}, changed: []string{"port"}},
+		{name: "listener UDP forward", opts: options{listen: true, keepOpen: true, udp: true, port: 51820, destination: "127.0.0.1", pairingToken: "configured", timeout: 60, udpIdleTimeout: 0}, args: []string{"10007"}, changed: []string{"port", "udp-idle-timeout"}},
 		{name: "client raw", opts: options{timeout: 60, udpIdleTimeout: 300}, args: []string{"peer", "10001"}},
 		{name: "client raw quit delay", opts: options{timeout: 60, quitDelay: 1, udpIdleTimeout: 300}, args: []string{"peer", "10001"}},
 		{name: "client zero", opts: options{zero: true, timeout: 60, udpIdleTimeout: 300}, args: []string{"peer", "10001"}},
@@ -202,7 +203,64 @@ func TestValidateModeMatrix(t *testing.T) {
 	}
 }
 
+func TestPrivilegedListenersRequirePairingByDefault(t *testing.T) {
+	t.Setenv("P2P_NETCAT_TOKEN", "")
+	tests := []struct {
+		name string
+		opts options
+	}{
+		{name: "command", opts: options{exec: "id"}},
+		{name: "PTY", opts: options{interactive: true}},
+		{name: "SOCKS", opts: options{socks: true}},
+		{name: "TCP forward", opts: options{port: 22}},
+		{name: "UDP forward", opts: options{udp: true, port: 51820}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.opts.listen = true
+			test.opts.timeout = 60
+			test.opts.udpIdleTimeout = 300
+			command := &cobra.Command{}
+			command.Flags().Int("port", 0, "")
+			command.Flags().Int("udp-idle-timeout", 300, "")
+			if test.opts.port != 0 {
+				if err := command.Flags().Set("port", strconv.Itoa(test.opts.port)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := validateOptions(command, &test.opts, []string{"32000"}); err == nil {
+				t.Fatal("privileged listener without pairing token was accepted")
+			}
+			test.opts.allowUnauthenticatedListener = true
+			if err := validateOptions(command, &test.opts, []string{"32000"}); err != nil {
+				t.Fatalf("explicit unsafe override was rejected: %v", err)
+			}
+			test.opts.allowUnauthenticatedListener = false
+			test.opts.pairingTokenFile = "token.txt"
+			if err := validateOptions(command, &test.opts, []string{"32000"}); err != nil {
+				t.Fatalf("pairing-protected listener was rejected: %v", err)
+			}
+		})
+	}
+}
+
+func TestUnsafeListenerOverrideRequiresPrivilegedListener(t *testing.T) {
+	t.Setenv("P2P_NETCAT_TOKEN", "")
+	command := &cobra.Command{}
+	command.Flags().Int("port", 0, "")
+	command.Flags().Int("udp-idle-timeout", 300, "")
+	for _, opts := range []*options{
+		{allowUnauthenticatedListener: true, timeout: 60, udpIdleTimeout: 300},
+		{listen: true, allowUnauthenticatedListener: true, timeout: 60, udpIdleTimeout: 300},
+	} {
+		if err := validateOptions(command, opts, []string{"32000"}); err == nil {
+			t.Fatal("meaningless --allow-unauthenticated-listener was accepted")
+		}
+	}
+}
+
 func TestValidateUDPForwardingOptions(t *testing.T) {
+	t.Setenv("P2P_NETCAT_TOKEN", "")
 	command := &cobra.Command{}
 	command.Flags().Int("port", 0, "")
 	if err := command.Flags().Set("port", "51820"); err != nil {
@@ -213,6 +271,7 @@ func TestValidateUDPForwardingOptions(t *testing.T) {
 			listen:         true,
 			udp:            true,
 			port:           51820,
+			pairingToken:   "configured",
 			timeout:        60,
 			udpIdleTimeout: 300,
 		},
@@ -232,13 +291,19 @@ func TestValidateUDPForwardingOptions(t *testing.T) {
 }
 
 func TestNativeWebRTCEnabledForUDPForwarding(t *testing.T) {
-	if !nativeWebRTCEnabled(&options{udp: true}) {
-		t.Fatal("UDP forwarding must enable native WebRTC NAT traversal")
+	if nativeWebRTCEnabled(&options{udp: true}, false) {
+		t.Fatal("native WebRTC without pairing must be disabled by default")
 	}
-	if nativeWebRTCEnabled(&options{udp: true, noWebRTC: true}) {
+	if !nativeWebRTCEnabled(&options{udp: true}, true) {
+		t.Fatal("pairing must enable native WebRTC NAT traversal")
+	}
+	if !nativeWebRTCEnabled(&options{udp: true, allowUnauthenticatedNativeWebRTC: true}, false) {
+		t.Fatal("explicit unsafe override must enable native WebRTC")
+	}
+	if nativeWebRTCEnabled(&options{udp: true, noWebRTC: true}, true) {
 		t.Fatal("--no-webrtc must disable native WebRTC for UDP forwarding")
 	}
-	if nativeWebRTCEnabled(&options{udp: true, tor: true}) {
+	if nativeWebRTCEnabled(&options{udp: true, tor: true}, true) {
 		t.Fatal("Tor mode must disable native WebRTC for UDP forwarding")
 	}
 }

@@ -51,6 +51,12 @@ p2p-nc -p 2222 \
   --pairing-token-file ~/.config/p2p-netcat/ssh.token
 ```
 
+Привилегированные listener по умолчанию требуют pairing token. Чтобы остальные
+примеры транспорта не зависели от повторения шагов генерации token, snippets
+без `--pairing-token-file` используют явный публичный override
+`--allow-unauthenticated-listener`. Для любого непубличного назначения замените
+его привязанным к сервису pairing token.
+
 ## OpenSSH
 
 ### Локальный SSH-порт
@@ -58,7 +64,7 @@ p2p-nc -p 2222 \
 На машине с `sshd`:
 
 ```bash
-p2p-nc -l -k -d 127.0.0.1 -p 22 22022
+p2p-nc -l -k --allow-unauthenticated-listener -d 127.0.0.1 -p 22 22022
 ```
 
 На клиенте:
@@ -112,7 +118,7 @@ TCP-сервису. Клиентский `-p` создаёт локальный 
 
 ```bash
 python3 -m http.server --bind 127.0.0.1 8000
-p2p-nc -l -k -d 127.0.0.1 -p 8000 28000
+p2p-nc -l -k --allow-unauthenticated-listener -d 127.0.0.1 -p 8000 28000
 ```
 
 Клиент:
@@ -127,7 +133,7 @@ curl http://127.0.0.1:18000/
 Сервер:
 
 ```bash
-p2p-nc -l -k -d 127.0.0.1 -p 5432 25432
+p2p-nc -l -k --allow-unauthenticated-listener -d 127.0.0.1 -p 5432 25432
 ```
 
 Клиент:
@@ -145,7 +151,7 @@ PostgreSQL может оставаться привязанным к loopback и
 На Windows-машине с включённым Remote Desktop:
 
 ```powershell
-p2p-nc.exe -l -k -d 127.0.0.1 -p 3389 23389
+p2p-nc.exe -l -k --allow-unauthenticated-listener -d 127.0.0.1 -p 3389 23389
 ```
 
 На клиенте:
@@ -163,7 +169,7 @@ forwarding-listener на ней, а подключение — на другой
 
 ```bash
 # Машина A, сервис слушает 127.0.0.1:9000
-p2p-nc -l -k -d 127.0.0.1 -p 9000 29000
+p2p-nc -l -k --allow-unauthenticated-listener -d 127.0.0.1 -p 9000 29000
 
 # Машина B
 p2p-nc -p 19000 12D3KooWQ3uxpHgjDKE6vGmvzKS8RPbxUDLwJ7XCLaD6YXdUfbR9 29000
@@ -175,7 +181,7 @@ curl http://127.0.0.1:19000/
 Запустите удалённый SOCKS endpoint:
 
 ```bash
-p2p-nc -l -k -S 31080
+p2p-nc -l -k -S --allow-unauthenticated-listener 31080
 ```
 
 Опубликуйте его как локальный loopback-only proxy:
@@ -211,7 +217,7 @@ local 127.0.0.1
 
 ```bash
 sudo openvpn --config /etc/openvpn/server/server.conf
-p2p-nc -l -k -d 127.0.0.1 -p 1194 31194
+p2p-nc -l -k --allow-unauthenticated-listener -d 127.0.0.1 -p 1194 31194
 ```
 
 На клиенте опубликуйте OpenVPN локально:
@@ -256,7 +262,7 @@ Relay v2.
 На машине WireGuard-сервера:
 
 ```bash
-p2p-nc -u -l -k -d 127.0.0.1 -p 51820 35182
+p2p-nc -u -l -k --allow-unauthenticated-listener -d 127.0.0.1 -p 51820 35182
 ```
 
 На машине WireGuard-клиента:
@@ -285,12 +291,13 @@ Wrapper требует Linux, root, `iproute2` и `setpriv` из `util-linux`. �
 `--home /var/lib/p2p-netcat-client` и сделайте каталог доступным UID, выбранному
 через `--uid`.
 
-Обе команды по умолчанию включают native WebRTC. Публичные Nostr relay и
-WebTorrent tracker передают только signaling; прикладные пакеты идут напрямую
-между пирами через выбранный ICE DataChannel. Это позволяет проходить обычные
-cone/restricted NAT без собственного relay. Symmetric NAT или сеть,
-блокирующая UDP, всё ещё требует TURN, Circuit Relay либо доступного TCP/WSS
-маршрута.
+При наличии pairing token обе команды включают Native WebRTC и шифруют
+signaling, которым обмениваются публичные Nostr relay и WebTorrent trackers;
+прикладные пакеты идут peer-to-peer через выбранный ICE DataChannel. Без token
+Native WebRTC отключён, если не задан отдельный небезопасный override. Это
+позволяет проходить многие cone/restricted NAT без собственного relay.
+Symmetric NAT или сети с заблокированным UDP по-прежнему требуют TURN, Circuit
+Relay или доступный TCP/WSS-маршрут.
 
 Добавьте эти transport-параметры в клиентскую конфигурацию WireGuard:
 
@@ -380,7 +387,7 @@ endpoint занимает его и создаёт один connected UDP socket
 в обоих процессах p2p-netcat:
 
 ```bash
-p2p-nc -u --udp-idle-timeout 0 -l -k -d 127.0.0.1 -p 51820 35182
+p2p-nc -u --udp-idle-timeout 0 -l -k --allow-unauthenticated-listener -d 127.0.0.1 -p 51820 35182
 sudo wireguard-full-tunnel.sh -- \
   /usr/local/bin/p2p-nc -u --udp-idle-timeout 0 \
   -p 15182 "${P2PNC_PEER_ID}" 35182
@@ -406,6 +413,7 @@ TCP/WSS relay и при необходимости отключите direct dis
 export P2PNC_RELAY=/dns4/relay.example.net/tcp/443/wss/p2p/12D3KooWEqeQRAJ61HSv9yMPk8yzjke7NxmTFcvFt4GzwXxzVjXW
 
 p2p-nc -u -l -k \
+  --allow-unauthenticated-listener \
   --relay "${P2PNC_RELAY}" \
   --no-quic --no-webrtc --no-mdns --no-pubsub --no-dht \
   -d 127.0.0.1 -p 51820 35182
@@ -428,7 +436,7 @@ UDP-сервисов с фиксированным назначением:
 
 ```bash
 # Машина OpenVPN UDP-сервера
-p2p-nc -u -l -k -d 127.0.0.1 -p 1194 31194
+p2p-nc -u -l -k --allow-unauthenticated-listener -d 127.0.0.1 -p 1194 31194
 
 # Машина OpenVPN UDP-клиента; в OpenVPN задайте remote 127.0.0.1 11194 udp
 p2p-nc -u -p 11194 "${P2PNC_PEER_ID}" 31194

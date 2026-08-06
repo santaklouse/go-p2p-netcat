@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-P2PNC_VERSION="v0.6.0"
+P2PNC_VERSION="v0.7.0"
 P2PNC_ANDROID_ABI="$(adb shell getprop ro.product.cpu.abi | tr -d '\r')"
 case "$P2PNC_ANDROID_ABI" in
   arm64-v8a) P2PNC_ANDROID_ARCH="arm64" ;;
@@ -15,6 +15,15 @@ P2PNC_RELEASE_URL="https://github.com/santaklouse/go-p2p-netcat/releases/downloa
 
 curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/${P2PNC_ARCHIVE}"
 curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/SHA256SUMS"
+curl --fail --location --remote-name "${P2PNC_RELEASE_URL}/SHA256SUMS.sigstore.json"
+command -v cosign >/dev/null 2>&1 || {
+  echo "cosign v3 is required to verify the release" >&2
+  exit 1
+}
+cosign verify-blob SHA256SUMS \
+  --bundle SHA256SUMS.sigstore.json \
+  --certificate-identity "https://github.com/santaklouse/go-p2p-netcat/.github/workflows/release-main.yml@refs/tags/${P2PNC_VERSION}" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
 if command -v sha256sum >/dev/null 2>&1; then
   grep "  ${P2PNC_ARCHIVE}$" SHA256SUMS | sha256sum --check -
 else

@@ -20,8 +20,10 @@ browser-safe TypeScript core and static PWA.
 - PTY frames: one-byte type plus big-endian 32-bit payload length;
 - pairing: deterministic CBOR `pnc1_` tokens, HKDF-SHA-256, AES-256-GCM,
   rotating rendezvous, and the fixed mutual admission handshake;
-- native WebRTC: protocol v2, `p2p-netcat-v2` ordered data channel, historical
-  `p2p-netcat/trystero-auth/v1` signature domain, and identical control frames.
+- native WebRTC: protocol v2, `p2p-netcat-v2` ordered data channel,
+  authentication-response v2 with the
+  `p2p-netcat/native-webrtc-auth/v2` transcript domain, and identical control
+  frames.
 
 ## Go CLI route selection
 
@@ -51,10 +53,11 @@ Circuit Relay v2 provide UDP-over-stream fallbacks.
 
 ## Native WebRTC
 
-The listener signs a 32-byte challenge with its persistent libp2p identity.
-The client reconstructs the exact expected PeerId from the included public key
-and verifies the service-bound signature. Data and control frames implement
-EOF, abort, keepalive, acknowledgements, and a 256 KiB flow window.
+The listener signs a versioned transcript with its persistent libp2p identity.
+The transcript binds the exact expected PeerId and service to the challenge,
+signaling session, roles, and hashes of both SDP descriptions. The SDP hashes
+bind the proof to the negotiated DTLS fingerprints. Data and control frames
+implement EOF, abort, keepalive, acknowledgements, and a 256 KiB flow window.
 
 An unexpected disconnect starts a 120-second reconnect grace period. New
 offers reuse the signaling peer identity, attach the replacement Pion data

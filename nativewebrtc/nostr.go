@@ -117,6 +117,9 @@ func (s *NostrSession) subscribe() {
 		if event.Event == nil {
 			continue
 		}
+		if len(event.Event.Content) > maxSignalingMessageBytes {
+			continue
+		}
 		valid, err := event.Event.CheckSignature()
 		if err != nil || !valid {
 			continue

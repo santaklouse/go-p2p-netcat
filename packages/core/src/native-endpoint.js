@@ -105,6 +105,7 @@ export function startNativeWebRtcListener ({
 
     let challengeAnswered = false
     let authenticated = false
+    let answerSdp = ''
     let attemptTimer
     let peer
     const cleanupAttempt = () => {
@@ -127,14 +128,21 @@ export function startNativeWebRtcListener ({
       initiator: false,
       rtcConfig,
       trickleIce: session.trickleIce === true,
-      onSignal: signal => session.publish({
-        ...signal,
-        sessionId: offer.sessionId,
-        to: offer.from
-      }),
+      onSignal: signal => {
+        if (signal.type === 'answer') answerSdp = signal.sdp
+        return session.publish({
+          ...signal,
+          sessionId: offer.sessionId,
+          to: offer.from
+        })
+      },
       onFrame: async frame => {
         if (frame.type === NATIVE_WEBRTC_FRAME_AUTH_CHALLENGE) {
-          const response = await createAuthResponse(frame.payload)
+          const response = await createAuthResponse(frame.payload, Object.freeze({
+            sessionId: offer.sessionId,
+            offerSdp: offer.sdp,
+            answerSdp
+          }))
           await peer.sendFrame(NATIVE_WEBRTC_FRAME_AUTH_RESPONSE, response)
           challengeAnswered = true
           return
@@ -296,7 +304,11 @@ export function connectNativeWebRtc ({
   }
 
   const claimPeer = async (attempt, response) => {
-    const valid = await verifyAuthResponse(response, attempt.challenge)
+    const valid = await verifyAuthResponse(response, attempt.challenge, Object.freeze({
+      sessionId: attempt.sessionId,
+      offerSdp: attempt.offerSdp,
+      answerSdp: attempt.answerSdp
+    }))
     if (valid === false) throw new Error('Native WebRTC PeerId authentication failed')
     if (closed) throw new Error('Native WebRTC connection is closed')
     if (link.peer != null && link.peer !== attempt.peer) {
@@ -350,6 +362,8 @@ export function connectNativeWebRtc ({
       session,
       sessionId,
       challenge,
+      offerSdp: '',
+      answerSdp: '',
       get peer () {
         return peer
       },
@@ -367,10 +381,13 @@ export function connectNativeWebRtc ({
       initiator: true,
       rtcConfig,
       trickleIce: session.trickleIce === true,
-      onSignal: signal => session.publish({
-        ...signal,
-        sessionId
-      }),
+      onSignal: signal => {
+        if (signal.type === 'offer') attempt.offerSdp = signal.sdp
+        return session.publish({
+          ...signal,
+          sessionId
+        })
+      },
       onOpen: () => {
         void peer.sendFrame(NATIVE_WEBRTC_FRAME_AUTH_CHALLENGE, challenge)
           .catch(error => peer.close(asError(error)))
@@ -408,6 +425,7 @@ export function connectNativeWebRtc ({
         message.to !== session.peerId ||
         (message.type !== 'answer' && message.type !== 'candidate')
       ) return
+      if (message.type === 'answer') attempt.answerSdp = message.sdp
       void peer.signal(message).catch(error => peer.close(asError(error)))
     })
     attempts.add(attempt)

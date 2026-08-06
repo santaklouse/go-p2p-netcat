@@ -135,6 +135,28 @@ jobs:
           go-version-file: go.mod
           cache: true
           cache-dependency-path: go.sum
+      - name: Install UPX for Linux packages
+        if: matrix.goos == 'linux'
+        shell: bash
+        env:
+          UPX_VERSION: 5.2.0
+          UPX_SHA256: 3db5d3294707439db97866feab8d75d800f028f48481a40547411824da4288a1
+        run: |
+          set -euo pipefail
+          archive="upx-${UPX_VERSION}-amd64_linux.tar.xz"
+          url="https://github.com/upx/upx/releases/download/v${UPX_VERSION}/${archive}"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            --output "${RUNNER_TEMP}/${archive}" \
+            "$url"
+          printf '%s  %s\n' "$UPX_SHA256" "${RUNNER_TEMP}/${archive}" \
+            | sha256sum --check --strict
+          tar -C "$RUNNER_TEMP" -xJf "${RUNNER_TEMP}/${archive}"
+          mkdir -p "${RUNNER_TEMP}/upx-bin"
+          install -m 0755 \
+            "${RUNNER_TEMP}/upx-${UPX_VERSION}-amd64_linux/upx" \
+            "${RUNNER_TEMP}/upx-bin/upx"
+          "${RUNNER_TEMP}/upx-bin/upx" --version
+          printf '%s\n' "${RUNNER_TEMP}/upx-bin" >> "$GITHUB_PATH"
       - name: Build and package
         shell: bash
         env:
@@ -201,6 +223,34 @@ jobs:
             tar -tzf "dist/$package.tar.gz" >/dev/null
           fi
 
+          if [[ "$GOOS" == "linux" ]]; then
+            packed_package="${package}-upx"
+            cp -a "dist/$package" "dist/$packed_package"
+
+            for executable in "$binary" "$alias_binary"; do
+              original="dist/$package/$executable"
+              packed="dist/$packed_package/$executable"
+              unpacked="${RUNNER_TEMP}/${packed_package}-${executable}.unpacked"
+
+              upx -qqq -9 "$packed"
+              upx -qqq -t "$packed"
+              upx -qqq -d "$packed" -o "$unpacked"
+              cmp --silent "$original" "$unpacked"
+              rm -f "$unpacked"
+            done
+
+            if [[ "$GOARCH" == "amd64" ]]; then
+              "dist/$packed_package/$binary" --version \
+                | grep -Fqx "p2p-nc version $version"
+              "dist/$packed_package/$alias_binary" --version \
+                | grep -Fqx "p2p-nc version $version"
+            fi
+
+            tar -C dist -czf "dist/$packed_package.tar.gz" "$packed_package"
+            tar -tzf "dist/$packed_package.tar.gz" >/dev/null
+            rm -rf "dist/$packed_package"
+          fi
+
           rm -rf "dist/$package"
       - name: Upload build
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -243,6 +293,19 @@ jobs:
           cd dist
           sha256sum p2p-nc-* deploy.sh wireguard-full-tunnel.sh > SHA256SUMS
           sha256sum --check SHA256SUMS
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Sign release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          artifacts=(p2p-nc-* deploy.sh wireguard-full-tunnel.sh SHA256SUMS)
+          for artifact in "${artifacts[@]}"; do
+            cosign sign-blob --yes \
+              --bundle "${artifact}.sigstore.json" \
+              "${artifact}"
+          done
       - name: Attest release artifacts
         uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
         with:

@@ -4,11 +4,15 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/santaklouse/go-p2p-netcat/internal/secretfile"
 )
+
+const maxIdentityFileSize = 64 * 1024
 
 func DefaultPath() string {
 	base := os.Getenv("XDG_CONFIG_HOME")
@@ -31,8 +35,32 @@ func LoadOrCreate(path string) (crypto.PrivKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(absolute)
+	file, err := os.Open(absolute)
 	if err == nil {
+		info, statErr := file.Stat()
+		if statErr != nil {
+			_ = file.Close()
+			return nil, fmt.Errorf("inspect private key %s: %w", absolute, statErr)
+		}
+		if !info.Mode().IsRegular() {
+			_ = file.Close()
+			return nil, fmt.Errorf("private key %s must be a regular file", absolute)
+		}
+		if permissionErr := secretfile.CheckPermissions(file, info); permissionErr != nil {
+			_ = file.Close()
+			return nil, fmt.Errorf("private key %s is not private: %w", absolute, permissionErr)
+		}
+		data, readErr := io.ReadAll(io.LimitReader(file, maxIdentityFileSize+1))
+		closeErr := file.Close()
+		if readErr != nil {
+			return nil, fmt.Errorf("read private key %s: %w", absolute, readErr)
+		}
+		if closeErr != nil {
+			return nil, fmt.Errorf("close private key %s: %w", absolute, closeErr)
+		}
+		if len(data) > maxIdentityFileSize {
+			return nil, fmt.Errorf("private key %s exceeds %d bytes", absolute, maxIdentityFileSize)
+		}
 		key, decodeErr := crypto.UnmarshalPrivateKey(data)
 		if decodeErr != nil {
 			return nil, fmt.Errorf("read private key %s: %w", absolute, decodeErr)
@@ -53,7 +81,7 @@ func LoadOrCreate(path string) (crypto.PrivKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	file, err := os.OpenFile(absolute, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	file, err = os.OpenFile(absolute, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
 			return LoadOrCreate(absolute)
@@ -62,12 +90,16 @@ func LoadOrCreate(path string) (crypto.PrivKey, error) {
 	}
 	if _, err := file.Write(encoded); err != nil {
 		_ = file.Close()
+		_ = os.Remove(absolute)
 		return nil, fmt.Errorf("write identity %s: %w", absolute, err)
 	}
-	if err := file.Close(); err != nil {
-		return nil, err
+	if err := secretfile.Protect(file); err != nil {
+		_ = file.Close()
+		_ = os.Remove(absolute)
+		return nil, fmt.Errorf("protect identity %s: %w", absolute, err)
 	}
-	if err := os.Chmod(absolute, 0o600); err != nil {
+	if err := file.Close(); err != nil {
+		_ = os.Remove(absolute)
 		return nil, err
 	}
 	return key, nil
