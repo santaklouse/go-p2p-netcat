@@ -49,7 +49,12 @@ jobs:
           "${RUNNER_TEMP}/actionlint-bin/actionlint"
       - name: Check shell syntax
         shell: bash
-        run: bash -n deploy/deploy.sh deploy/deploy_test.sh deploy/wireguard-full-tunnel.sh deploy/wireguard-full-tunnel_test.sh scripts/docker_test.sh scripts/full_tunnel_netns_test.sh scripts/sync-wiki.sh scripts/sync-wiki_test.sh
+        run: bash -n deploy/deploy.sh deploy/deploy_test.sh deploy/wireguard-full-tunnel.sh deploy/wireguard-full-tunnel_test.sh packaging/build-deb.sh packaging/generate-homebrew-formula.sh packaging/homebrew_test.sh packaging/package_test.sh scripts/docker_test.sh scripts/full_tunnel_netns_test.sh scripts/sync-wiki.sh scripts/sync-wiki_test.sh
+      - name: Test release packaging
+        shell: bash
+        run: |
+          bash packaging/homebrew_test.sh
+          bash packaging/package_test.sh
 
   test:
     name: Go tests (${{ matrix.os }})
