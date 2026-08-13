@@ -27,6 +27,17 @@ and installs `p2p-nc`, `pnc`, and `p2p-netcat`. Cosign v3 is required. See
 [installation](docs/INSTALLATION.md#verified-deploy-script) for version
 pinning, a custom destination, and uninstalling.
 
+Install through Homebrew on macOS or Linux:
+
+```bash
+brew install santaklouse/tap/p2p-netcat
+```
+
+Debian and Ubuntu users can add the signed APT repository and then use
+`sudo apt install p2p-netcat`. See
+[package-manager installation](docs/INSTALLATION.md#package-managers) for the
+repository command and signing-key fingerprint.
+
 The Linux `amd64`/`arm64` container is published to
 [GitHub Packages](https://github.com/santaklouse/go-p2p-netcat/pkgs/container/go-p2p-netcat):
 
@@ -577,6 +588,7 @@ The separate `.github/workflows/webrtc-soak.yml` workflow runs the longer
 selection.
 
 - Linux: `amd64`, `arm64`, with original and optional `-upx` archives;
+- Debian packages: `amd64`, `arm64`;
 - macOS: `amd64`, `arm64`;
 - Windows: `amd64`, `arm64`;
 - Android 7.0 (API 24) and newer: `arm64`, `armv7`.
@@ -586,8 +598,9 @@ are distributed as `.zip` archives, and Android builds as `.tar.gz` archives.
 Only the Linux `amd64` and `arm64` release binaries receive separate,
 explicitly named UPX variants; macOS binaries are never UPX-packed.
 Every release also contains `SHA256SUMS` and keyless Sigstore bundles for every
-artifact. The deploy script authenticates the signed checksum manifest before
-checking an archive. Semantic tags such as `v0.7.0`
+artifact. New stable releases additionally contain `p2p-netcat.rb` for the
+Homebrew tap. The deploy script authenticates the signed checksum manifest
+before checking an archive. Semantic tags such as `v0.7.0`
 produce stable releases. Builds from `main` are marked as prereleases and use a
 deterministic tag that starts with `main-` and ends with the first 12
 characters of the commit SHA. Rerunning a workflow updates the same release

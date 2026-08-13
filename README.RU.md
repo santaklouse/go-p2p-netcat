@@ -26,6 +26,17 @@ Deploy-скрипт определяет Linux, macOS или Android и архи
 cosign v3. Закрепление версии, другой каталог и удаление
 описаны в разделе [установки](docs/INSTALLATION.RU.md#проверяемый-deploy-скрипт).
 
+Установка через Homebrew в macOS или Linux:
+
+```bash
+brew install santaklouse/tap/p2p-netcat
+```
+
+Пользователи Debian и Ubuntu могут добавить подписанный APT-репозиторий, а
+затем выполнять `sudo apt install p2p-netcat`. Команда добавления репозитория и
+fingerprint ключа приведены в разделе
+[установки через package manager](docs/INSTALLATION.RU.md#установка-через-package-manager).
+
 Linux-контейнеры `amd64`/`arm64` публикуются в
 [GitHub Packages](https://github.com/santaklouse/go-p2p-netcat/pkgs/container/go-p2p-netcat):
 
@@ -576,6 +587,7 @@ go run ./cmd/webrtc-soak --profile ci \
 выбирать профиль.
 
 - Linux: `amd64`, `arm64`, с исходными и дополнительными `-upx` архивами;
+- Debian packages: `amd64`, `arm64`;
 - macOS: `amd64`, `arm64`;
 - Windows: `amd64`, `arm64`;
 - Android 7.0 (API 24) и новее: `arm64`, `armv7`.
@@ -585,7 +597,8 @@ go run ./cmd/webrtc-soak --profile ci \
 UPX-варианты создаются только для Linux `amd64` и `arm64`; бинарники macOS
 никогда не упаковываются UPX. Каждый релиз содержит файл
 `SHA256SUMS` и keyless Sigstore bundles для каждого artifact. Deploy-скрипт
-аутентифицирует подписанный checksum manifest перед проверкой архива.
+аутентифицирует подписанный checksum manifest перед проверкой архива. Новые
+стабильные релизы дополнительно содержат `p2p-netcat.rb` для Homebrew tap.
 Семантические теги, например `v0.7.0`, создают стабильные релизы.
 Сборки из `main` помечаются как prerelease и получают детерминированный тег,
 который начинается с `main-` и заканчивается первыми 12 символами SHA коммита.

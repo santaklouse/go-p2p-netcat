@@ -212,6 +212,31 @@ jobs:
           go version -m "dist/$package/$binary"
           go version -m "dist/$package/$alias_binary"
 
+          if [[ "$GOOS" == "linux" ]]; then
+            deb_version="$version"
+            if [[ "$version" == main-* ]]; then
+              deb_version="0~$version"
+            fi
+            bash packaging/build-deb.sh \
+              "$deb_version" \
+              "$GOARCH" \
+              "dist/$package" \
+              dist
+
+            if [[ "$GOARCH" == "amd64" ]]; then
+              deb_root="${RUNNER_TEMP}/p2p-netcat-deb-root"
+              dpkg-deb --extract \
+                "dist/p2p-netcat_${deb_version}_${GOARCH}.deb" \
+                "$deb_root"
+              "$deb_root/usr/bin/p2p-nc" --version \
+                | grep -Fqx "p2p-nc version $version"
+              "$deb_root/usr/bin/pnc" --version \
+                | grep -Fqx "p2p-nc version $version"
+              "$deb_root/usr/bin/p2p-netcat" --version \
+                | grep -Fqx "p2p-nc version $version"
+            fi
+          fi
+
           if [[ "$ARCHIVE" == "zip" ]]; then
             (
               cd dist
@@ -286,12 +311,33 @@ jobs:
         run: |
           install -m 0755 deploy/deploy.sh dist/deploy.sh
           install -m 0755 deploy/wireguard-full-tunnel.sh dist/wireguard-full-tunnel.sh
+      - name: Generate Homebrew formula
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          darwin_amd64_sha256="$(sha256sum dist/p2p-nc-darwin-amd64.tar.gz | awk '{print $1}')"
+          darwin_arm64_sha256="$(sha256sum dist/p2p-nc-darwin-arm64.tar.gz | awk '{print $1}')"
+          linux_amd64_sha256="$(sha256sum dist/p2p-nc-linux-amd64.tar.gz | awk '{print $1}')"
+          linux_arm64_sha256="$(sha256sum dist/p2p-nc-linux-arm64.tar.gz | awk '{print $1}')"
+          bash packaging/generate-homebrew-formula.sh \
+            "$version" \
+            "$darwin_amd64_sha256" \
+            "$darwin_arm64_sha256" \
+            "$linux_amd64_sha256" \
+            "$linux_arm64_sha256" \
+            dist/p2p-netcat.rb
       - name: Create checksums
         shell: bash
         run: |
           set -euo pipefail
           cd dist
-          sha256sum p2p-nc-* deploy.sh wireguard-full-tunnel.sh > SHA256SUMS
+          artifacts=(p2p-nc-* p2p-netcat_*.deb deploy.sh wireguard-full-tunnel.sh)
+          if [[ -f p2p-netcat.rb ]]; then
+            artifacts+=(p2p-netcat.rb)
+          fi
+          sha256sum "${artifacts[@]}" > SHA256SUMS
           sha256sum --check SHA256SUMS
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
@@ -300,7 +346,10 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
-          artifacts=(p2p-nc-* deploy.sh wireguard-full-tunnel.sh SHA256SUMS)
+          artifacts=(p2p-nc-* p2p-netcat_*.deb deploy.sh wireguard-full-tunnel.sh SHA256SUMS)
+          if [[ -f p2p-netcat.rb ]]; then
+            artifacts+=(p2p-netcat.rb)
+          fi
           for artifact in "${artifacts[@]}"; do
             cosign sign-blob --yes \
               --bundle "${artifact}.sigstore.json" \

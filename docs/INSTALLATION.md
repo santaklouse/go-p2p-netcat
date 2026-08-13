@@ -9,6 +9,54 @@
 - cosign v3 for verified binary-release installation;
 - outbound TCP/WSS and UDP for discovery, signaling, QUIC, and WebRTC.
 
+## Package managers
+
+### Homebrew
+
+The project-maintained tap installs the stable macOS or Linux build for
+`amd64` or `arm64`:
+
+```bash
+brew install santaklouse/tap/p2p-netcat
+p2p-nc --version
+```
+
+The formula installs `p2p-nc` and the `pnc` and `p2p-netcat` command aliases.
+It checks the selected immutable GitHub release archive against the SHA-256
+recorded in the formula. `brew update` and `brew upgrade p2p-netcat` apply
+future stable releases from
+[`santaklouse/homebrew-tap`](https://github.com/santaklouse/homebrew-tap).
+
+### Debian and Ubuntu APT
+
+The signed repository supports `amd64` and `arm64`. Add its dedicated keyring
+and source once, then install normally:
+
+```bash
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL \
+  https://santaklouse.github.io/p2p-netcat-packages/apt/p2p-netcat-archive-keyring.gpg |
+  sudo tee /etc/apt/keyrings/p2p-netcat-archive-keyring.gpg >/dev/null
+echo "deb [signed-by=/etc/apt/keyrings/p2p-netcat-archive-keyring.gpg] https://santaklouse.github.io/p2p-netcat-packages/apt stable main" |
+  sudo tee /etc/apt/sources.list.d/p2p-netcat.list >/dev/null
+sudo apt update
+sudo apt install p2p-netcat
+p2p-nc --version
+```
+
+The expected full OpenPGP fingerprint is:
+
+```text
+7401 47C0 2804 D4D3 12B4 836B 954C 0F46 3F95 7362
+```
+
+APT validates the signed `InRelease` metadata through the repository-specific
+`Signed-By` keyring. The setup does not use `trusted=yes` or the deprecated
+global `apt-key` keyring. Packages install `/usr/bin/p2p-nc` and the
+`/usr/bin/pnc` and `/usr/bin/p2p-netcat` aliases. Repository source and build
+automation are maintained in
+[`santaklouse/p2p-netcat-packages`](https://github.com/santaklouse/p2p-netcat-packages).
+
 ## Verified deploy script
 
 Install the latest Linux, macOS, or Android release:

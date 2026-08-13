@@ -49,7 +49,22 @@ route, port mapping, or Circuit Relay.
 | `packages/core` | Browser-safe JavaScript wire compatibility package |
 | `web` | Static browser PWA |
 | `deploy` | Installer and Linux WireGuard full-tunnel wrapper |
+| `packaging` | Debian package and Homebrew formula generation and tests |
 | `scripts` | Docker, Wiki, and privileged network-namespace integration tests |
+
+## Package-manager releases
+
+- Stable Homebrew formulae are published through
+  `santaklouse/homebrew-tap`; release archives remain the binary source of
+  truth and every formula URL has an exact SHA-256.
+- Linux `amd64` and `arm64` release jobs create `p2p-netcat_VERSION_ARCH.deb`.
+  The package installs `p2p-nc` plus `pnc` and `p2p-netcat` symlinks.
+- The signed APT repository is maintained in
+  `santaklouse/p2p-netcat-packages` and published with GitHub Pages. Keep its
+  OpenPGP fingerprint synchronized in English/Russian installation docs:
+  `7401 47C0 2804 D4D3 12B4 836B 954C 0F46 3F95 7362`.
+- Never replace `Signed-By` repository authentication with `trusted=yes` or
+  the deprecated global `apt-key` keyring.
 
 ## WireGuard full-tunnel design
 
@@ -128,6 +143,9 @@ GOTOOLCHAIN=auto go vet ./...
 GOTOOLCHAIN=auto go run ./cmd/webrtc-soak --profile smoke
 bash deploy/deploy_test.sh
 bash deploy/wireguard-full-tunnel_test.sh
+bash packaging/homebrew_test.sh
+# Linux or another environment with a working dpkg-deb:
+bash packaging/package_test.sh
 bash scripts/sync-wiki_test.sh
 bash scripts/docker_test.sh
 ```
